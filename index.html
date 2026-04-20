@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PCB Current Capacity Calculator</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#0a0f1a;--surface:#111827;--card:#1a2235;--card2:#1e293b;
+  --border:#2d3a50;--teal:#0d9488;--teal2:#14b8a6;--copper:#d97706;--copper2:#f59e0b;
+  --text:#e2e8f0;--text2:#94a3b8;--text3:#64748b;--white:#fff;
+  --red:#ef4444;--green:#10b981;
+}
+body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min-height:100vh;overflow-x:hidden}
+.noise{position:fixed;top:0;left:0;width:100%;height:100%;opacity:0.03;pointer-events:none;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
+
+header{padding:2rem 2rem 1rem;text-align:center;position:relative}
+header h1{font-size:1.6rem;font-weight:700;background:linear-gradient(135deg,var(--teal2),var(--copper2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;letter-spacing:-0.02em}
+header p{color:var(--text3);font-size:0.8rem;margin-top:0.3rem;font-family:'JetBrains Mono',monospace}
+
+.tabs{display:flex;justify-content:center;gap:0.5rem;padding:0.8rem 1rem;flex-wrap:wrap}
+.tab{padding:0.6rem 1.4rem;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--text2);cursor:pointer;font-family:'DM Sans',sans-serif;font-size:0.85rem;font-weight:600;transition:all 0.3s}
+.tab:hover{border-color:var(--teal);color:var(--teal2)}
+.tab.active{background:var(--teal);border-color:var(--teal);color:var(--white)}
+.tab.active.copper{background:var(--copper);border-color:var(--copper)}
+
+.container{max-width:1100px;margin:0 auto;padding:0 1.5rem 3rem}
+.panel{display:none}
+.panel.active{display:block}
+
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;margin-top:1rem}
+@media(max-width:768px){.grid{grid-template-columns:1fr}}
+
+.card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:1.5rem;position:relative;overflow:hidden}
+.card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,var(--teal),var(--teal2))}
+.card.copper-accent::before{background:linear-gradient(90deg,var(--copper),var(--copper2))}
+.card h3{font-size:0.75rem;text-transform:uppercase;letter-spacing:0.1em;color:var(--teal2);margin-bottom:1rem;font-weight:600}
+.card.copper-accent h3{color:var(--copper2)}
+
+.field{margin-bottom:1rem}
+.field label{display:block;font-size:0.75rem;color:var(--text3);margin-bottom:0.35rem;font-family:'JetBrains Mono',monospace;text-transform:uppercase;letter-spacing:0.05em}
+.field-row{display:flex;gap:0.5rem;align-items:center}
+.field input,.field select{width:100%;padding:0.6rem 0.8rem;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:0.9rem;outline:none;transition:border-color 0.2s}
+.field input:focus,.field select:focus{border-color:var(--teal2)}
+.field .unit{color:var(--text3);font-size:0.8rem;font-family:'JetBrains Mono',monospace;min-width:2.5rem}
+
+.result-card{background:linear-gradient(135deg,var(--card),var(--card2));border:1px solid var(--border);border-radius:12px;padding:1.5rem;margin-top:1rem}
+.result-card h3{font-size:0.75rem;text-transform:uppercase;letter-spacing:0.1em;color:var(--copper2);margin-bottom:1rem;font-weight:600}
+.result-big{font-family:'JetBrains Mono',monospace;font-size:2.8rem;font-weight:700;color:var(--teal2);line-height:1}
+.result-big .unit-text{font-size:1rem;color:var(--text3);font-weight:400;margin-left:0.3rem}
+.result-row{display:flex;justify-content:space-between;padding:0.5rem 0;border-bottom:1px solid rgba(255,255,255,0.05)}
+.result-row:last-child{border-bottom:none}
+.result-label{color:var(--text3);font-size:0.8rem}
+.result-value{color:var(--text);font-family:'JetBrains Mono',monospace;font-size:0.85rem;font-weight:600}
+.result-value.highlight{color:var(--teal2)}
+.result-value.copper{color:var(--copper2)}
+.result-value.warn{color:var(--red)}
+
+.correction-tag{display:inline-block;padding:0.15rem 0.5rem;border-radius:4px;font-size:0.7rem;font-family:'JetBrains Mono',monospace;font-weight:600}
+.correction-tag.int{background:rgba(13,148,136,0.15);color:var(--teal2)}
+.correction-tag.half{background:rgba(217,119,6,0.15);color:var(--copper2)}
+.correction-tag.betw{background:rgba(100,116,139,0.15);color:var(--text2)}
+
+.formula-box{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:1rem;margin-top:0.8rem;font-family:'JetBrains Mono',monospace;font-size:0.75rem;color:var(--text3);line-height:1.7;overflow-x:auto}
+.formula-box .hl{color:var(--copper2)}
+.formula-box .tl{color:var(--teal2)}
+
+.steps{margin-top:0.8rem}
+.step{display:flex;align-items:baseline;gap:0.5rem;padding:0.3rem 0;font-family:'JetBrains Mono',monospace;font-size:0.78rem}
+.step .s-label{color:var(--text3);min-width:4rem}
+.step .s-value{color:var(--text2)}
+.step .s-value b{color:var(--teal2);font-weight:600}
+
+.info-bar{display:flex;gap:1rem;margin-top:0.8rem;flex-wrap:wrap}
+.info-chip{padding:0.4rem 0.8rem;background:rgba(13,148,136,0.1);border:1px solid rgba(13,148,136,0.2);border-radius:6px;font-size:0.72rem;color:var(--teal2);font-family:'JetBrains Mono',monospace}
+.info-chip.copper{background:rgba(217,119,6,0.1);border-color:rgba(217,119,6,0.2);color:var(--copper2)}
+
+.divider{height:1px;background:var(--border);margin:1.5rem 0}
+
+</style>
+</head>
+<body>
+<div class="noise"></div>
+
+<header>
+  <h1>PCB Current Capacity Calculator</h1>
+  <p>Traces • Vias • Microvias</p>
+</header>
+
+<div class="tabs">
+  <button class="tab active" onclick="switchTab('trace',this)">Trace Current</button>
+  <button class="tab" onclick="switchTab('via',this)">Via Current</button>
+  <button class="tab copper" onclick="switchTab('micro',this)">Microvia Current</button>
+</div>
+
+<div class="container">
+
+<!-- ========== TRACE PANEL ========== -->
+<div class="panel active" id="panel-trace">
+  <div class="grid">
+    <div class="card">
+      <h3>Input Parameters</h3>
+      <div class="field">
+        <label>Trace Width</label>
+        <div class="field-row"><input type="number" id="t_width" value="2.0" step="0.1" min="0.05" oninput="calcTrace()"><span class="unit">mm</span></div>
+      </div>
+      <div class="field">
+        <label>Copper Thickness</label>
+        <div class="field-row"><input type="number" id="t_thick" value="70" step="1" min="9" oninput="calcTrace()"><span class="unit">µm</span></div>
+      </div>
+      <div class="field">
+        <label>Temperature Rise (ΔT)</label>
+        <div class="field-row"><input type="number" id="t_dt" value="25" step="1" min="1" oninput="calcTrace()"><span class="unit">°C</span></div>
+      </div>
+      <div class="formula-box">
+        <b>Formula:</b><br>
+        i = i' − C<br>
+        i' = (<span class="hl">Ac</span> / (117.6 × ΔT<sup>−0.913</sup> + 1.15))<sup>1/x</sup><br>
+        x = (0.84 × ΔT<sup>−0.108</sup>) + 1.159<br>
+        <span class="hl">Ac</span> = (A − ΔA) × 1550 <span class="tl">mil²</span>
+      </div>
+    </div>
+    <div>
+      <div class="result-card">
+        <h3>Results</h3>
+        <div class="result-big" id="t_result">6.42<span class="unit-text">A</span></div>
+        <div class="info-bar" id="t_tags"></div>
+        <div class="divider"></div>
+        <div id="t_details"></div>
+      </div>
+      <div class="result-card" style="margin-top:0.8rem">
+        <h3>Calculation Steps</h3>
+        <div class="steps" id="t_steps"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ========== VIA PANEL ========== -->
+<div class="panel" id="panel-via">
+  <div class="grid">
+    <div class="card copper-accent">
+      <h3>Input Parameters</h3>
+      <div class="field">
+        <label>Drill Diameter</label>
+        <div class="field-row"><input type="number" id="v_drill" value="0.3" step="0.05" min="0.05" oninput="calcVia()"><span class="unit">mm</span></div>
+      </div>
+      <div class="field">
+        <label>Plating Thickness</label>
+        <div class="field-row"><input type="number" id="v_plating" value="25" step="1" min="10" oninput="calcVia()"><span class="unit">µm</span></div>
+      </div>
+      <div class="field">
+        <label>Board Thickness (Via Height)</label>
+        <div class="field-row"><input type="number" id="v_height" value="1.6" step="0.1" min="0.1" oninput="calcVia()"><span class="unit">mm</span></div>
+      </div>
+      <div class="field">
+        <label>Temperature Rise (ΔT)</label>
+        <div class="field-row"><input type="number" id="v_dt" value="10" step="1" min="1" oninput="calcVia()"><span class="unit">°C</span></div>
+      </div>
+      <div class="formula-box">
+        <b>Formula:</b><br>
+        i = [A / (117.6 × ΔT<sup>−0.913</sup> + 1.15)]<sup>1/x</sup> − 0.1<br>
+        x = (0.84 × ΔT<sup>−0.108</sup>) + 1.159<br>
+        A = π × (D + T) × T<br>
+        <b>Resistance:</b> R = ρ × L / A
+      </div>
+    </div>
+    <div>
+      <div class="result-card">
+        <h3>Results</h3>
+        <div class="result-big" id="v_result">1.58<span class="unit-text">A</span></div>
+        <div class="divider"></div>
+        <div id="v_details"></div>
+      </div>
+      <div class="result-card" style="margin-top:0.8rem">
+        <h3>Calculation Steps</h3>
+        <div class="steps" id="v_steps"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ========== MICROVIA PANEL ========== -->
+<div class="panel" id="panel-micro">
+  <div class="grid">
+    <div class="card copper-accent">
+      <h3>Input Parameters</h3>
+      <div class="field">
+        <label>Drill Diameter</label>
+        <div class="field-row"><input type="number" id="m_drill" value="0.1" step="0.025" min="0.025" oninput="calcMicro()"><span class="unit">mm</span></div>
+      </div>
+      <div class="field">
+        <label>Via Height (Depth)</label>
+        <div class="field-row"><input type="number" id="m_height" value="0.1" step="0.025" min="0.025" oninput="calcMicro()"><span class="unit">mm</span></div>
+      </div>
+      <div class="field">
+        <label>Plating Thickness</label>
+        <div class="field-row"><input type="number" id="m_plating" value="25" step="1" min="10" oninput="calcMicro()"><span class="unit">µm</span></div>
+      </div>
+      <div class="field">
+        <label>Temperature Rise (ΔT)</label>
+        <div class="field-row"><input type="number" id="m_dt" value="10" step="1" min="1" oninput="calcMicro()"><span class="unit">°C</span></div>
+      </div>
+      <div class="field">
+        <label>Fill Type</label>
+        <select id="m_fill" onchange="calcMicro()">
+          <option value="hollow">Hollow (barrel only)</option>
+          <option value="filled">Copper-Filled</option>
+        </select>
+      </div>
+      <div class="formula-box">
+        <b>Formula:</b><br>
+        I = I<sub>base</sub> × x<br>
+        I<sub>base</sub> = [A / (117.6 × ΔT<sup>−0.913</sup> + 1.15)]<sup>1/x_exp</sup> − 0.1<br>
+        <b>Height correction:</b><br>
+        D,H,10T all ≤ 0.25 → <span class="hl">x = 0.40</span><br>
+        Otherwise → <span class="hl">x = 0.48</span>
+      </div>
+    </div>
+    <div>
+      <div class="result-card">
+        <h3>Results</h3>
+        <div class="result-big" id="m_result">0.36<span class="unit-text">A</span></div>
+        <div class="info-bar" id="m_tags"></div>
+        <div class="divider"></div>
+        <div id="m_details"></div>
+      </div>
+      <div class="result-card" style="margin-top:0.8rem">
+        <h3>Calculation Steps</h3>
+        <div class="steps" id="m_steps"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div>
+
+<script>
+function switchTab(id, btn) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('panel-' + id).classList.add('active');
+}
+
+function getTraceCorrections(w_mm) {
+  if (Math.abs(w_mm - Math.round(w_mm)) < 0.001 && Math.round(w_mm) >= 1)
+    return { dA: 0.005, C: 0.33, type: 'Int', label: 'Integer mm' };
+  if (Math.abs((w_mm * 2) - Math.round(w_mm * 2)) < 0.001 && Math.abs(w_mm - Math.round(w_mm)) > 0.3)
+    return { dA: 0.005, C: 0.15, type: 'Half', label: 'Half mm' };
+  return { dA: 0.003, C: 0.24, type: 'Betw', label: 'In between' };
+}
+
+function calcTrace() {
+  const w = parseFloat(document.getElementById('t_width').value) || 1;
+  const t_um = parseFloat(document.getElementById('t_thick').value) || 35;
+  const dT = parseFloat(document.getElementById('t_dt').value) || 25;
+  const t_mm = t_um / 1000;
+  const A_mm2 = w * t_mm;
+  const A_mil2 = A_mm2 * 1550.0031;
+  const corr = getTraceCorrections(w);
+  const Ac_mm2 = Math.max(A_mm2 - corr.dA, 0);
+  const Ac_mil2 = Ac_mm2 * 1550.0031;
+  const x = 0.84 * Math.pow(dT, -0.108) + 1.159;
+  const C_den = 117.6 * Math.pow(dT, -0.913) + 1.15;
+  const i_raw = Ac_mil2 > 0 ? Math.pow(Ac_mil2 / C_den, 1 / x) : 0;
+  const i_final = Math.max(i_raw - corr.C, 0);
+
+  document.getElementById('t_result').innerHTML = i_final.toFixed(2) + '<span class="unit-text">A</span>';
+  
+  const tagClass = corr.type === 'Int' ? 'int' : corr.type === 'Half' ? 'half' : 'betw';
+  document.getElementById('t_tags').innerHTML = `
+    <span class="correction-tag ${tagClass}">${corr.label}: ΔA=${corr.dA}, C=${corr.C}</span>
+    <span class="info-chip">Width: ${w} mm</span>
+    <span class="info-chip copper">${(t_um/35).toFixed(1)} oz Cu</span>
+  `;
+  
+  document.getElementById('t_details').innerHTML = `
+    <div class="result-row"><span class="result-label">Raw Area A</span><span class="result-value">${A_mm2.toFixed(4)} mm² (${A_mil2.toFixed(1)} mil²)</span></div>
+    <div class="result-row"><span class="result-label">Area Correction ΔA</span><span class="result-value copper">${corr.dA} mm²</span></div>
+    <div class="result-row"><span class="result-label">Corrected Area Ac</span><span class="result-value highlight">${Ac_mm2.toFixed(4)} mm² (${Ac_mil2.toFixed(1)} mil²)</span></div>
+    <div class="result-row"><span class="result-label">i' (before C)</span><span class="result-value">${i_raw.toFixed(3)} A</span></div>
+    <div class="result-row"><span class="result-label">Current Offset C</span><span class="result-value copper">${corr.C} A</span></div>
+    <div class="result-row"><span class="result-label">Final Current i</span><span class="result-value highlight">${i_final.toFixed(3)} A</span></div>
+  `;
+  
+  document.getElementById('t_steps').innerHTML = `
+    <div class="step"><span class="s-label">A =</span><span class="s-value">${w} × ${t_mm} = <b>${A_mm2.toFixed(4)} mm²</b></span></div>
+    <div class="step"><span class="s-label">Ac =</span><span class="s-value">(${A_mm2.toFixed(4)} − ${corr.dA}) × 1550 = <b>${Ac_mil2.toFixed(1)} mil²</b></span></div>
+    <div class="step"><span class="s-label">x =</span><span class="s-value">0.84 × ${dT}^(−0.108) + 1.159 = <b>${x.toFixed(4)}</b></span></div>
+    <div class="step"><span class="s-label">C_den =</span><span class="s-value">117.6 × ${dT}^(−0.913) + 1.15 = <b>${C_den.toFixed(4)}</b></span></div>
+    <div class="step"><span class="s-label">i' =</span><span class="s-value">(${Ac_mil2.toFixed(1)} / ${C_den.toFixed(4)})^(1/${x.toFixed(4)}) = <b>${i_raw.toFixed(3)} A</b></span></div>
+    <div class="step"><span class="s-label">i =</span><span class="s-value">${i_raw.toFixed(3)} − ${corr.C} = <b>${i_final.toFixed(3)} A</b></span></div>
+  `;
+}
+
+function calcVia() {
+  const D = parseFloat(document.getElementById('v_drill').value) || 0.3;
+  const T_um = parseFloat(document.getElementById('v_plating').value) || 25;
+  const H = parseFloat(document.getElementById('v_height').value) || 1.6;
+  const dT = parseFloat(document.getElementById('v_dt').value) || 10;
+  const T_mm = T_um / 1000;
+  const A_mm2 = Math.PI * (D + T_mm) * T_mm;
+  const A_mil2 = A_mm2 * 1550.0031;
+  const x = 0.84 * Math.pow(dT, -0.108) + 1.159;
+  const C_den = 117.6 * Math.pow(dT, -0.913) + 1.15;
+  const i_raw = Math.pow(A_mil2 / C_den, 1 / x);
+  const i_final = Math.max(i_raw - 0.1, 0);
+  
+  const rho = 1.48e-6;
+  const L_cm = H / 10;
+  const A_cm2 = A_mm2 / 100;
+  const R = rho * L_cm / A_cm2;
+  const R_mOhm = R * 1000;
+  const V_drop = i_final * R_mOhm;
+  const P_loss = i_final * i_final * R_mOhm;
+
+  document.getElementById('v_result').innerHTML = i_final.toFixed(2) + '<span class="unit-text">A</span>';
+  
+  document.getElementById('v_details').innerHTML = `
+    <div class="result-row"><span class="result-label">Barrel Area</span><span class="result-value">${A_mm2.toFixed(5)} mm² (${A_mil2.toFixed(1)} mil²)</span></div>
+    <div class="result-row"><span class="result-label">Aspect Ratio</span><span class="result-value">${(H/D).toFixed(1)}:1</span></div>
+    <div class="result-row"><span class="result-label">Via Resistance</span><span class="result-value highlight">${R_mOhm.toFixed(3)} mΩ</span></div>
+    <div class="result-row"><span class="result-label">Voltage Drop @ ${i_final.toFixed(2)}A</span><span class="result-value">${V_drop.toFixed(3)} mV</span></div>
+    <div class="result-row"><span class="result-label">Power Loss</span><span class="result-value">${P_loss.toFixed(3)} mW</span></div>
+    <div class="result-row"><span class="result-label">i' (before corr)</span><span class="result-value">${i_raw.toFixed(3)} A</span></div>
+    <div class="result-row"><span class="result-label">Correction</span><span class="result-value copper">−0.1 A</span></div>
+  `;
+  
+  document.getElementById('v_steps').innerHTML = `
+    <div class="step"><span class="s-label">A =</span><span class="s-value">π × (${D} + ${T_mm}) × ${T_mm} = <b>${A_mm2.toFixed(5)} mm²</b></span></div>
+    <div class="step"><span class="s-label">A(mil²) =</span><span class="s-value">${A_mm2.toFixed(5)} × 1550 = <b>${A_mil2.toFixed(1)} mil²</b></span></div>
+    <div class="step"><span class="s-label">x =</span><span class="s-value"><b>${x.toFixed(4)}</b></span></div>
+    <div class="step"><span class="s-label">C_den =</span><span class="s-value"><b>${C_den.toFixed(4)}</b></span></div>
+    <div class="step"><span class="s-label">i' =</span><span class="s-value">(${A_mil2.toFixed(1)} / ${C_den.toFixed(4)})^(1/${x.toFixed(4)}) = <b>${i_raw.toFixed(3)} A</b></span></div>
+    <div class="step"><span class="s-label">i =</span><span class="s-value">${i_raw.toFixed(3)} − 0.1 = <b>${i_final.toFixed(3)} A</b></span></div>
+    <div class="step"><span class="s-label">R =</span><span class="s-value">1.48e-6 × ${L_cm.toFixed(4)} / ${A_cm2.toExponential(3)} = <b>${R_mOhm.toFixed(3)} mΩ</b></span></div>
+  `;
+}
+
+function calcMicro() {
+  const D = parseFloat(document.getElementById('m_drill').value) || 0.1;
+  const H = parseFloat(document.getElementById('m_height').value) || 0.1;
+  const T_um = parseFloat(document.getElementById('m_plating').value) || 25;
+  const dT = parseFloat(document.getElementById('m_dt').value) || 10;
+  const fill = document.getElementById('m_fill').value;
+  const T_mm = T_um / 1000;
+  
+  const A_mm2 = fill === 'filled' ? Math.PI * Math.pow(D/2 + T_mm, 2) : Math.PI * (D + T_mm) * T_mm;
+  const A_mil2 = A_mm2 * 1550.0031;
+  const x_exp = 0.84 * Math.pow(dT, -0.108) + 1.159;
+  const C_den = 117.6 * Math.pow(dT, -0.913) + 1.15;
+  const i_base = Math.max(Math.pow(A_mil2 / C_den, 1 / x_exp) - 0.1, 0);
+  
+  const tenT = 10 * T_mm;
+  let x_corr, cond;
+  if (D <= tenT && H <= tenT && tenT <= 0.25) { x_corr = 0.4; cond = 'C1'; }
+  else { x_corr = 0.48; cond = 'C2'; }
+  
+  const i_final = i_base * x_corr;
+
+  document.getElementById('m_result').innerHTML = i_final.toFixed(3) + '<span class="unit-text">A</span>';
+  
+  document.getElementById('m_tags').innerHTML = `
+    <span class="info-chip copper">${cond}: x = ${x_corr}</span>
+    <span class="info-chip">${fill === 'filled' ? 'Cu-Filled' : 'Hollow'}</span>
+    <span class="info-chip">10T = ${(tenT).toFixed(3)} mm</span>
+  `;
+  
+  document.getElementById('m_details').innerHTML = `
+    <div class="result-row"><span class="result-label">Area (${fill === 'filled' ? 'full circle' : 'barrel'})</span><span class="result-value">${A_mm2.toFixed(5)} mm² (${A_mil2.toFixed(1)} mil²)</span></div>
+    <div class="result-row"><span class="result-label">I_base (before height corr)</span><span class="result-value">${i_base.toFixed(3)} A</span></div>
+    <div class="result-row"><span class="result-label">Height Correction x</span><span class="result-value copper">${x_corr}</span></div>
+    <div class="result-row"><span class="result-label">Condition</span><span class="result-value">${cond}: D=${D}mm, H=${H}mm, 10T=${tenT.toFixed(3)}mm ${cond==='C1'?'all ≤ 0.25':'any > 0.25'}</span></div>
+    <div class="result-row"><span class="result-label">Final Current</span><span class="result-value highlight">${i_final.toFixed(3)} A</span></div>
+  `;
+  
+  document.getElementById('m_steps').innerHTML = `
+    <div class="step"><span class="s-label">A =</span><span class="s-value">${fill==='filled' ? `π × (${D}/2 + ${T_mm})²` : `π × (${D} + ${T_mm}) × ${T_mm}`} = <b>${A_mm2.toFixed(5)} mm²</b></span></div>
+    <div class="step"><span class="s-label">x_exp =</span><span class="s-value"><b>${x_exp.toFixed(4)}</b></span></div>
+    <div class="step"><span class="s-label">I_base =</span><span class="s-value">(${A_mil2.toFixed(1)} / ${C_den.toFixed(4)})^(1/${x_exp.toFixed(4)}) − 0.1 = <b>${i_base.toFixed(3)} A</b></span></div>
+    <div class="step"><span class="s-label">10T =</span><span class="s-value">${tenT.toFixed(3)} mm → Condition <b>${cond}</b> → x = <b>${x_corr}</b></span></div>
+    <div class="step"><span class="s-label">I =</span><span class="s-value">${i_base.toFixed(3)} × ${x_corr} = <b>${i_final.toFixed(3)} A</b></span></div>
+  `;
+}
+
+
+// Initialize
+calcTrace();
+calcVia();
+calcMicro();
+</script>
+</body>
+</html>
