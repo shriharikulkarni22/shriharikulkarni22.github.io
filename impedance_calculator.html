@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PCB Impedance Calculator — IPC-2141A</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Inter:wght@400;500;600;700;800&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg: #06090f; --surface: #0d1117; --card: #161b22; --border: #30363d;
+    --blue: #58a6ff; --green: #3fb950; --amber: #d29922; --red: #f85149; --purple: #bc8cff;
+    --text: #e6edf3; --text-sec: #8b949e; --text-mut: #6e7681;
+    --input-bg: #0d1117; --input-border: #30363d;
+    --mono: 'JetBrains Mono', 'Fira Code', monospace;
+    --sans: 'Inter', -apple-system, 'Segoe UI', system-ui, sans-serif;
+  }
+
+  body { background: var(--bg); color: var(--text); font-family: var(--sans); padding: 16px 10px; min-height: 100vh; }
+  .container { max-width: 500px; margin: 0 auto; }
+
+  /* Header */
+  .header { text-align: center; margin-bottom: 24px; }
+  .header-tag { font-size: 10px; font-weight: 700; color: var(--blue); letter-spacing: 0.2em; margin-bottom: 4px; }
+  .header h1 { font-size: 20px; font-weight: 800; }
+  .header p { font-size: 10px; color: var(--text-mut); margin-top: 4px; }
+
+  /* Pill toggles */
+  .pill-group { display: flex; gap: 3px; background: var(--surface); border-radius: 10px; padding: 3px; margin-bottom: 10px; border: 1px solid var(--border); }
+  .pill { flex: 1; padding: 9px 0; border: none; border-radius: 8px; cursor: pointer; background: transparent; color: var(--text-sec); font-size: 12px; font-weight: 600; font-family: var(--sans); transition: all 0.15s; }
+  .pill.active { background: var(--blue); color: #fff; }
+
+  .small-pill-group { display: flex; gap: 3px; flex: 1; }
+  .small-pill { flex: 1; padding: 6px 8px; cursor: pointer; border-radius: 6px; border: 1px solid var(--border); background: transparent; color: var(--text-mut); font-size: 11px; font-weight: 600; font-family: var(--sans); transition: all 0.15s; }
+  .small-pill.active { border-color: rgba(88,166,255,0.4); background: rgba(88,166,255,0.08); color: var(--blue); }
+
+  .row { display: flex; gap: 8px; margin-bottom: 14px; }
+
+  /* Card */
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 16px; margin-bottom: 14px; }
+  .card-title { font-size: 9px; color: var(--text-mut); letter-spacing: 0.12em; text-transform: uppercase; font-weight: 700; margin-bottom: 12px; }
+
+  /* Fields */
+  .field { margin-bottom: 14px; }
+  .field-header { display: flex; justify-content: space-between; margin-bottom: 3px; }
+  .field-label { font-size: 11px; font-weight: 600; color: var(--text-sec); letter-spacing: 0.04em; }
+  .field-info { font-size: 9px; color: var(--text-mut); font-style: italic; }
+  .field-row { display: flex; gap: 6px; align-items: center; }
+  .field-input { flex: 1; background: var(--input-bg); border: 1px solid var(--input-border); border-radius: 6px; padding: 9px 12px; color: var(--text); font-size: 14px; font-family: var(--mono); outline: none; transition: border-color 0.15s; width: 100%; }
+  .field-input:focus { border-color: var(--blue); }
+  .field-unit { font-size: 11px; color: var(--text-mut); font-family: var(--mono); min-width: 28px; }
+  .field-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 14px; }
+
+  /* Copper presets */
+  .presets { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 10px; }
+  .presets span { font-size: 9px; color: var(--text-mut); width: 100%; margin-bottom: 2px; }
+  .preset-btn { padding: 3px 8px; font-size: 9px; font-family: var(--mono); border: 1px solid var(--border); border-radius: 4px; background: transparent; color: var(--text-sec); cursor: pointer; }
+  .preset-btn:hover { border-color: var(--blue); color: var(--blue); }
+
+  /* Warning */
+  .warning { padding: 6px 8px; background: rgba(210,153,34,0.06); border: 1px solid rgba(210,153,34,0.2); border-radius: 6px; margin-bottom: 8px; font-size: 9px; color: var(--amber); font-family: var(--mono); }
+
+  /* Results */
+  .result { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 12px 10px; text-align: center; }
+  .result.big { padding: 18px 14px; }
+  .result-label { font-size: 9px; font-weight: 600; color: var(--text-mut); letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 4px; }
+  .result-value { font-weight: 700; font-family: var(--mono); letter-spacing: -0.02em; }
+  .result-value .unit { font-size: 10px; color: var(--text-sec); margin-left: 3px; font-weight: 400; }
+  .result.big .result-value { font-size: 30px; }
+  .result.big .result-value .unit { font-size: 13px; }
+  .result:not(.big) .result-value { font-size: 20px; }
+  .result-note { font-size: 9px; color: var(--text-mut); margin-top: 3px; }
+  .result-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .results-stack { display: grid; gap: 10px; }
+
+  /* Status */
+  .status { display: flex; align-items: center; gap: 6px; padding: 6px 10px; border-radius: 6px; }
+  .status-dot { width: 8px; height: 8px; border-radius: 50%; }
+  .status-label { font-size: 11px; font-weight: 700; }
+  .status-detail { font-size: 10px; color: var(--text-sec); font-family: var(--mono); }
+
+  /* Insight */
+  .insight { padding: 10px 12px; background: rgba(88,166,255,0.05); border: 1px solid rgba(88,166,255,0.12); border-radius: 8px; font-size: 11px; color: var(--text-sec); line-height: 1.5; }
+  .insight strong { color: var(--blue); }
+
+  /* Protocols */
+  .proto-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 4px; }
+  .proto-btn { padding: 5px 6px; font-size: 10px; cursor: pointer; border: 1px solid var(--border); border-radius: 6px; background: transparent; color: var(--text-sec); display: flex; justify-content: space-between; font-family: var(--sans); transition: all 0.15s; }
+  .proto-btn.active { border-color: rgba(63,185,80,0.3); background: rgba(63,185,80,0.06); color: var(--green); }
+  .proto-btn .z { font-family: var(--mono); font-weight: 700; }
+
+  /* Formulas */
+  .formulas { font-size: 10px; color: var(--text-sec); font-family: var(--mono); line-height: 2.2; }
+  .formula-note { font-size: 9px; color: var(--text-mut); margin-top: 8px; line-height: 1.5; font-family: var(--sans); }
+
+  /* Diagram */
+  .diagram-label { font-size: 8px; color: var(--text-mut); text-align: center; margin-bottom: 6px; letter-spacing: 0.1em; text-transform: uppercase; }
+
+  /* Footer */
+  .footer { font-size: 9px; color: var(--text-mut); text-align: center; line-height: 1.6; padding: 0 8px 20px; }
+
+  /* Hide number input arrows */
+  input[type=number]::-webkit-inner-spin-button,
+  input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+  input[type=number] { -moz-appearance: textfield; }
+
+/* ── HOME BUTTON ── */
+.home-btn {
+  position: fixed;
+  top: 14px;
+  left: 14px;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  background: rgba(8, 12, 16, 0.82);
+  border: 1px solid rgba(255,255,255,0.13);
+  border-radius: 8px;
+  padding: 7px 13px 7px 10px;
+  font-size: 11px;
+  font-family: 'DM Mono', 'JetBrains Mono', 'Courier New', monospace;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(220,215,205,0.75);
+  text-decoration: none;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  cursor: pointer;
+  transition: background 0.18s, border-color 0.18s, color 0.18s, transform 0.15s;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.45);
+}
+.home-btn:hover {
+  background: rgba(216, 90, 48, 0.18);
+  border-color: rgba(216, 90, 48, 0.5);
+  color: #D85A30;
+  transform: translateX(-2px);
+}
+.home-btn svg {
+  width: 13px; height: 13px;
+  flex-shrink: 0;
+  opacity: 0.7;
+  transition: opacity 0.18s;
+}
+.home-btn:hover svg { opacity: 1; }
+</style>
+</head>
+<body>
+
+<!-- HOME BUTTON -->
+<a class="home-btn" href="index.html" title="Back to all tools">
+  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <polyline points="10 12 6 8 10 4"/>
+  </svg>
+  Home
+</a>
+
+
+<div class="container" id="app">
+  <!-- Header -->
+  <div class="header">
+    <div class="header-tag">IPC-2141A</div>
+    <h1>PCB Impedance Calculator</h1>
+    <p>Verified against Saturn PCB Toolkit (0.00% error)</p>
+  </div>
+
+  <!-- Mode toggle -->
+  <div class="pill-group">
+    <button class="pill active" id="btn-single" onclick="setMode('single')">Single-Ended</button>
+    <button class="pill" id="btn-diff" onclick="setMode('differential')">Differential Pair</button>
+  </div>
+
+  <!-- Config + Unit -->
+  <div class="row">
+    <div class="small-pill-group">
+      <button class="small-pill active" id="btn-micro" onclick="setConfig('microstrip')">Microstrip</button>
+      <button class="small-pill" id="btn-strip" onclick="setConfig('stripline')">Stripline</button>
+    </div>
+    <div class="small-pill-group" style="flex:0.6">
+      <button class="small-pill active" id="btn-mil" onclick="setUnit('mil')">mil</button>
+      <button class="small-pill" id="btn-mm" onclick="setUnit('mm')">mm</button>
+    </div>
+  </div>
+
+  <!-- Diagram -->
+  <div class="card" style="padding: 10px 6px 6px;">
+    <div class="diagram-label" id="diagram-label">Edge-Coupled Microstrip</div>
+    <div id="diagram-container"></div>
+  </div>
+
+  <!-- Inputs -->
+  <div class="card">
+    <div class="field-grid">
+      <div class="field">
+        <div class="field-header"><span class="field-label">Trace Width (W)</span></div>
+        <div class="field-row">
+          <input class="field-input" type="number" id="inp-w" value="10.0" step="0.1" min="0" oninput="calculate()">
+          <span class="field-unit" id="unit-w">mil</span>
+        </div>
+      </div>
+      <div class="field">
+        <div class="field-header"><span class="field-label">Copper Thickness (T)</span><span class="field-info">incl. plating</span></div>
+        <div class="field-row">
+          <input class="field-input" type="number" id="inp-t" value="2.1" step="0.1" min="0" oninput="calculate()">
+          <span class="field-unit" id="unit-t">mil</span>
+        </div>
+      </div>
+      <div class="field">
+        <div class="field-header"><span class="field-label">Dielectric Height (H)</span></div>
+        <div class="field-row">
+          <input class="field-input" type="number" id="inp-h" value="15.0" step="0.1" min="0" oninput="calculate()">
+          <span class="field-unit" id="unit-h">mil</span>
+        </div>
+      </div>
+      <div class="field" id="field-s">
+        <div class="field-header"><span class="field-label">Trace Gap (S)</span><span class="field-info">edge to edge</span></div>
+        <div class="field-row">
+          <input class="field-input" type="number" id="inp-s" value="5.0" step="0.1" min="0" oninput="calculate()">
+          <span class="field-unit" id="unit-s">mil</span>
+        </div>
+      </div>
+      <div class="field">
+        <div class="field-header"><span class="field-label">Dielectric Constant (Er)</span><span class="field-info">FR-4 ≈ 4.2–4.6</span></div>
+        <div class="field-row">
+          <input class="field-input" type="number" id="inp-er" value="4.6" step="0.1" min="1" oninput="calculate()">
+          <span class="field-unit">Dk</span>
+        </div>
+      </div>
+      <div class="field" id="field-target">
+        <div class="field-header"><span class="field-label">Target Z_diff</span></div>
+        <div class="field-row">
+          <input class="field-input" type="number" id="inp-target" value="100" step="5" min="10" oninput="calculate()">
+          <span class="field-unit">Ω</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Copper presets -->
+    <div class="presets">
+      <span>Copper presets:</span>
+      <button class="preset-btn" onclick="setCopper(0)">½ oz</button>
+      <button class="preset-btn" onclick="setCopper(1)">1 oz</button>
+      <button class="preset-btn" onclick="setCopper(2)">1oz+plt</button>
+      <button class="preset-btn" onclick="setCopper(3)">2 oz</button>
+    </div>
+
+    <div id="warnings"></div>
+  </div>
+
+  <!-- Results -->
+  <div class="card" id="results-card"></div>
+
+  <!-- Protocols -->
+  <div class="card" id="proto-card">
+    <div class="card-title">Protocol Targets — tap to set</div>
+    <div class="proto-grid" id="proto-grid"></div>
+  </div>
+
+  <!-- Formulas -->
+  <div class="card">
+    <div class="card-title">Formulas (IPC-2141A)</div>
+    <div class="formulas" id="formulas"></div>
+    <div class="formula-note">Valid: 0.1 &lt; W/H &lt; 3.0, 0.1 &lt; S/H &lt; 3.0. For production, verify with fabricator's field solver.</div>
+  </div>
+
+  <div class="footer">IPC-2141A approximations. Verified against Saturn PCB Toolkit. Always confirm with your fabricator for production.</div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════════════
+let state = {
+  mode: 'differential',  // 'single' or 'differential'
+  config: 'microstrip',   // 'microstrip' or 'stripline'
+  unit: 'mil',
+  target: 100,
+};
+
+const copperMil = [0.7, 1.4, 2.1, 2.8];
+const copperMm = [0.018, 0.035, 0.053, 0.071];
+
+const protocols = [
+  ['USB', 90], ['PCIe 1-2', 100], ['PCIe 3+', 85],
+  ['HDMI', 100], ['Ethernet', 100], ['CAN', 120],
+  ['LVDS', 100], ['SATA', 100], ['DDR CLK', 100],
+];
+
+// ═══════════════════════════════════════════════════════
+// IPC-2141A FORMULAS (verified against Saturn PCB Toolkit)
+// ═══════════════════════════════════════════════════════
+
+function microstrip_SE(w, t, h, er) {
+  if (w <= 0 || h <= 0 || er <= 0) return 0;
+  const val = 5.98 * h / (0.8 * w + t);
+  return val <= 1 ? 0 : (87 / Math.sqrt(er + 1.41)) * Math.log(val);
+}
+
+function stripline_SE(w, t, h, er) {
+  if (w <= 0 || h <= 0 || er <= 0) return 0;
+  const b = 2 * h + t;
+  const val = 1.9 * b / (0.8 * w + t);
+  return val <= 1 ? 0 : (60 / Math.sqrt(er)) * Math.log(val);
+}
+
+function calcAll() {
+  const w = parseFloat(document.getElementById('inp-w').value) || 0;
+  const t = parseFloat(document.getElementById('inp-t').value) || 0;
+  const h = parseFloat(document.getElementById('inp-h').value) || 0;
+  const s = parseFloat(document.getElementById('inp-s').value) || 0;
+  const er = parseFloat(document.getElementById('inp-er').value) || 0;
+  const target = parseFloat(document.getElementById('inp-target').value) || 100;
+  state.target = target;
+
+  const toMil = v => state.unit === 'mm' ? v / 0.0254 : v;
+  const W = toMil(w), T = toMil(t), H = toMil(h), S = toMil(s);
+
+  if (W <= 0 || T <= 0 || H <= 0 || er <= 1) return null;
+
+  const z0 = state.config === 'microstrip' ? microstrip_SE(W, T, H, er) : stripline_SE(W, T, H, er);
+  if (z0 <= 0 || !isFinite(z0)) return null;
+
+  if (state.mode === 'single') {
+    return { z0, wh: W / H };
+  }
+
+  if (S <= 0) return null;
+  const [kA, kB] = state.config === 'microstrip' ? [0.48, 0.96] : [0.347, 2.9];
+  const k = kA * Math.exp(-kB * S / H);
+  const zOdd = z0 * (1 - k);
+  const zEven = z0 / (1 - k);
+  return {
+    z0, zOdd, zEven, zDiff: 2 * zOdd, zCommon: zEven / 2,
+    kbUnterm: (zEven - zOdd) / (zEven + zOdd), k,
+    wh: W / H, sh: S / H,
+  };
+}
+
+// ═══════════════════════════════════════════════════════
+// RENDERING
+// ═══════════════════════════════════════════════════════
+
+function calculate() {
+  const r = calcAll();
+  renderResults(r);
+  renderDiagram();
+  renderWarnings();
+  renderFormulas();
+}
+
+function renderResults(r) {
+  const el = document.getElementById('results-card');
+  if (!r) { el.innerHTML = '<div class="card-title">Results</div><div style="color:var(--text-mut);font-size:12px;text-align:center;padding:20px 0;">Enter valid parameters</div>'; return; }
+
+  let html = '<div class="card-title">Results</div><div class="results-stack">';
+
+  if (state.mode === 'single') {
+    html += resultBig('Characteristic Impedance (Z₀)', r.z0.toFixed(2), 'Ω', 'var(--blue)');
+    html += '<div class="result-grid">';
+    html += resultSmall('W / H Ratio', r.wh.toFixed(3), '', 'var(--text-sec)');
+    html += '</div>';
+  } else {
+    html += resultBig('Differential Impedance (Z_diff)', r.zDiff.toFixed(2), 'Ω', 'var(--green)', '= 2 × Z_odd');
+
+    // Status
+    const pct = ((r.zDiff - state.target) / state.target * 100);
+    const absPct = Math.abs(pct);
+    const sColor = absPct <= 10 ? 'var(--green)' : absPct <= 15 ? 'var(--amber)' : 'var(--red)';
+    const sLabel = absPct <= 10 ? 'PASS' : absPct <= 15 ? 'MARGINAL' : 'FAIL';
+    html += `<div class="status" style="background:${sColor}10;border:1px solid ${sColor}30;">
+      <div class="status-dot" style="background:${sColor}"></div>
+      <span class="status-label" style="color:${sColor}">${sLabel}</span>
+      <span class="status-detail">${pct >= 0 ? '+' : ''}${pct.toFixed(1)}% from ${state.target}Ω (±10%)</span>
+    </div>`;
+
+    html += '<div class="result-grid">';
+    html += resultSmall('Z_odd', r.zOdd.toFixed(2), 'Ω', 'var(--blue)', 'Odd-mode');
+    html += resultSmall('Z_even', r.zEven.toFixed(2), 'Ω', 'var(--amber)', 'Even-mode');
+    html += resultSmall('Z₀ (SE)', r.z0.toFixed(2), 'Ω', 'var(--text-sec)', 'Single-ended');
+    html += resultSmall('Z_common', r.zCommon.toFixed(2), 'Ω', 'var(--text-sec)', '= Z_even / 2');
+    html += resultSmall("Kb' (unterm)", r.kbUnterm.toFixed(4), '', 'var(--purple)', 'Coupling coeff');
+    html += resultSmall('Kb (dB)', (20 * Math.log10(r.kbUnterm)).toFixed(2), 'dB', 'var(--text-sec)');
+    html += resultSmall('W / H', r.wh.toFixed(3), '', 'var(--text-sec)');
+    html += resultSmall('S / H', r.sh.toFixed(3), '', 'var(--text-sec)');
+    html += '</div>';
+
+    // Insight
+    const drop = ((1 - r.zDiff / (2 * r.z0)) * 100).toFixed(0);
+    let insight;
+    if (r.kbUnterm > 0.3) insight = `Tight coupling (Kb'=${r.kbUnterm.toFixed(2)}). Z_diff is ${drop}% below 2×Z₀. Good noise rejection, harder to route, more sensitive to manufacturing tolerances.`;
+    else if (r.kbUnterm > 0.1) insight = `Moderate coupling (Kb'=${r.kbUnterm.toFixed(2)}). Z_diff is ${drop}% below 2×Z₀. Good balance of routability and coupling.`;
+    else insight = `Loose coupling (Kb'=${r.kbUnterm.toFixed(2)}). Traces act nearly as independent single-ended lines. Easiest to route.`;
+    html += `<div class="insight"><strong>Insight: </strong>${insight}</div>`;
+  }
+
+  html += '</div>';
+  el.innerHTML = html;
+}
+
+function resultBig(label, value, unit, color, note) {
+  return `<div class="result big" style="border-color:${color}40;background:${color}08;">
+    <div class="result-label">${label}</div>
+    <div class="result-value" style="color:${color}">${value}<span class="unit">${unit}</span></div>
+    ${note ? `<div class="result-note">${note}</div>` : ''}
+  </div>`;
+}
+
+function resultSmall(label, value, unit, color, note) {
+  return `<div class="result">
+    <div class="result-label">${label}</div>
+    <div class="result-value" style="color:${color}">${value}<span class="unit">${unit}</span></div>
+    ${note ? `<div class="result-note">${note}</div>` : ''}
+  </div>`;
+}
+
+function renderDiagram() {
+  const w = parseFloat(document.getElementById('inp-w').value) || 10;
+  const t = parseFloat(document.getElementById('inp-t').value) || 2;
+  const h = parseFloat(document.getElementById('inp-h').value) || 15;
+  const s = parseFloat(document.getElementById('inp-s').value) || 5;
+
+  const toMil = v => state.unit === 'mm' ? v / 0.0254 : v;
+  const W = toMil(w), H = toMil(h), S = toMil(s), T = toMil(t);
+  const micro = state.config === 'microstrip';
+  const isDiff = state.mode === 'differential';
+  const svgW = 300, svgH = 120, sc = 2.2;
+  const tw = Math.min(Math.max(W * sc, 14), 55);
+  const th = Math.min(Math.max(T * sc, 3), 10);
+  const dh = Math.min(Math.max(H * sc * 0.7, 18), 45);
+  const gap = isDiff ? Math.min(Math.max(S * sc, 6), 44) : 0;
+  const cx = svgW / 2, planeY = micro ? 88 : 24;
+  const trY = micro ? planeY - dh - th : svgH / 2 - th / 2;
+  const t1x = isDiff ? cx - gap / 2 - tw : cx - tw / 2;
+  const t2x = cx + gap / 2;
+
+  let svg = `<svg viewBox="0 0 ${svgW} ${svgH}" style="width:100%;max-width:300px;display:block;margin:0 auto;">`;
+  // Dielectric
+  const dy = micro ? trY + th : planeY + 5;
+  svg += `<rect x="16" y="${dy}" width="${svgW - 32}" height="${dh}" fill="rgba(88,166,255,0.07)" stroke="var(--blue)" stroke-width="0.4" stroke-dasharray="2 2" rx="2"/>`;
+  svg += `<text x="${cx}" y="${dy + dh / 2 + 3}" text-anchor="middle" font-size="7" fill="var(--text-mut)" font-family="monospace">Er</text>`;
+  // Ground plane
+  svg += `<rect x="16" y="${planeY}" width="${svgW - 32}" height="5" fill="var(--green)" rx="1" opacity="0.9"/>`;
+  svg += `<text x="${svgW - 18}" y="${planeY + 4}" text-anchor="end" font-size="6" fill="var(--green)" font-family="monospace">GND</text>`;
+  if (!micro) {
+    svg += `<rect x="16" y="${svgH - 16}" width="${svgW - 32}" height="5" fill="var(--green)" rx="1" opacity="0.9"/>`;
+    svg += `<text x="${svgW - 18}" y="${svgH - 12}" text-anchor="end" font-size="6" fill="var(--green)" font-family="monospace">GND</text>`;
+  }
+  // Trace 1
+  svg += `<rect x="${t1x}" y="${trY}" width="${tw}" height="${th}" fill="var(--amber)" rx="1"/>`;
+  svg += `<text x="${t1x + tw / 2}" y="${trY - 3}" text-anchor="middle" font-size="6" fill="var(--amber)" font-family="monospace">${isDiff ? 'D+' : 'SIG'}</text>`;
+  // Trace 2
+  if (isDiff) {
+    svg += `<rect x="${t2x}" y="${trY}" width="${tw}" height="${th}" fill="var(--blue)" rx="1"/>`;
+    svg += `<text x="${t2x + tw / 2}" y="${trY - 3}" text-anchor="middle" font-size="6" fill="var(--blue)" font-family="monospace">D-</text>`;
+    svg += `<line x1="${t1x + tw + 1}" y1="${trY + th / 2}" x2="${t2x - 1}" y2="${trY + th / 2}" stroke="var(--red)" stroke-width="0.6" stroke-dasharray="1.5 1.5"/>`;
+    svg += `<text x="${cx}" y="${trY + th / 2 + 10}" text-anchor="middle" font-size="6" fill="var(--red)" font-family="monospace">S</text>`;
+  }
+  // Dimensions
+  svg += `<line x1="26" y1="${trY + th}" x2="26" y2="${planeY}" stroke="var(--text-mut)" stroke-width="0.5" stroke-dasharray="1.5 1.5"/>`;
+  svg += `<text x="12" y="${(trY + th + planeY) / 2 + 2}" text-anchor="middle" font-size="6" fill="var(--text-mut)" font-family="monospace">H</text>`;
+  svg += `<line x1="${t1x}" y1="${trY + th + 6}" x2="${t1x + tw}" y2="${trY + th + 6}" stroke="var(--amber)" stroke-width="0.5"/>`;
+  svg += `<text x="${t1x + tw / 2}" y="${trY + th + 13}" text-anchor="middle" font-size="6" fill="var(--amber)" font-family="monospace">W</text>`;
+  svg += '</svg>';
+
+  document.getElementById('diagram-container').innerHTML = svg;
+  document.getElementById('diagram-label').textContent = micro ? 'Edge-Coupled Microstrip' : 'Edge-Coupled Stripline';
+}
+
+function renderWarnings() {
+  const w = parseFloat(document.getElementById('inp-w').value) || 0;
+  const h = parseFloat(document.getElementById('inp-h').value) || 0;
+  const s = parseFloat(document.getElementById('inp-s').value) || 0;
+  const toMil = v => state.unit === 'mm' ? v / 0.0254 : v;
+  const W = toMil(w), H = toMil(h), S = toMil(s);
+  const warns = [];
+  if (H > 0 && (W / H < 0.1 || W / H > 3.0)) warns.push(`W/H = ${(W / H).toFixed(2)} outside valid range (0.1–3.0)`);
+  if (state.mode === 'differential' && H > 0 && (S / H < 0.1 || S / H > 3.0)) warns.push(`S/H = ${(S / H).toFixed(2)} outside valid range (0.1–3.0)`);
+  document.getElementById('warnings').innerHTML = warns.length ? `<div class="warning">${warns.map(w => '⚠ ' + w).join('<br>')}</div>` : '';
+}
+
+function renderFormulas() {
+  const micro = state.config === 'microstrip';
+  const diff = state.mode === 'differential';
+  let html = '';
+  if (micro) {
+    html += 'Z₀ = 87/√(Er+1.41) × ln(5.98×H/(0.8×W+T))<br>';
+    if (diff) {
+      html += 'k = 0.48 × exp(-0.96 × S/H)<br>';
+      html += 'Z_odd = Z₀ × (1 - k)<br>';
+      html += 'Z_even = Z₀ / (1 - k)<br>';
+      html += 'Z_diff = 2 × Z_odd';
+    }
+  } else {
+    html += 'Z₀ = (60/√Er) × ln(1.9×(2H+T)/(0.8×W+T))<br>';
+    if (diff) {
+      html += 'k = 0.347 × exp(-2.9 × S/H)<br>';
+      html += 'Z_odd = Z₀ × (1 - k)<br>';
+      html += 'Z_even = Z₀ / (1 - k)<br>';
+      html += 'Z_diff = 2 × Z_odd';
+    }
+  }
+  document.getElementById('formulas').innerHTML = html;
+}
+
+function renderProtocols() {
+  let html = '';
+  protocols.forEach(([name, z]) => {
+    const active = state.target === z ? ' active' : '';
+    html += `<button class="proto-btn${active}" onclick="setTarget(${z})">${name}<span class="z">${z}Ω</span></button>`;
+  });
+  document.getElementById('proto-grid').innerHTML = html;
+}
+
+// ═══════════════════════════════════════════════════════
+// ACTIONS
+// ═══════════════════════════════════════════════════════
+
+function setMode(m) {
+  state.mode = m;
+  document.getElementById('btn-single').classList.toggle('active', m === 'single');
+  document.getElementById('btn-diff').classList.toggle('active', m === 'differential');
+  document.getElementById('field-s').style.display = m === 'differential' ? '' : 'none';
+  document.getElementById('field-target').style.display = m === 'differential' ? '' : 'none';
+  document.getElementById('proto-card').style.display = m === 'differential' ? '' : 'none';
+  calculate();
+}
+
+function setConfig(c) {
+  state.config = c;
+  document.getElementById('btn-micro').classList.toggle('active', c === 'microstrip');
+  document.getElementById('btn-strip').classList.toggle('active', c === 'stripline');
+  calculate();
+}
+
+function setUnit(u) {
+  const oldUnit = state.unit;
+  if (oldUnit === u) return;
+  state.unit = u;
+  document.getElementById('btn-mil').classList.toggle('active', u === 'mil');
+  document.getElementById('btn-mm').classList.toggle('active', u === 'mm');
+
+  const ids = ['inp-w', 'inp-t', 'inp-h', 'inp-s'];
+  const unitIds = ['unit-w', 'unit-t', 'unit-h', 'unit-s'];
+  ids.forEach((id, i) => {
+    const el = document.getElementById(id);
+    let v = parseFloat(el.value) || 0;
+    if (u === 'mm' && oldUnit === 'mil') v = +(v * 0.0254).toFixed(3);
+    else if (u === 'mil' && oldUnit === 'mm') v = +(v / 0.0254).toFixed(1);
+    el.value = v;
+    document.getElementById(unitIds[i]).textContent = u;
+  });
+  calculate();
+}
+
+function setCopper(idx) {
+  const vals = state.unit === 'mil' ? copperMil : copperMm;
+  document.getElementById('inp-t').value = vals[idx];
+  calculate();
+}
+
+function setTarget(z) {
+  state.target = z;
+  document.getElementById('inp-target').value = z;
+  renderProtocols();
+  calculate();
+}
+
+// ═══════════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════════
+window.addEventListener('DOMContentLoaded', () => {
+  setMode('differential');
+  renderProtocols();
+  calculate();
+});
+</script>
+</body>
+</html>

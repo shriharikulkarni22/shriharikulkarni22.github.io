@@ -1,0 +1,1209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MOSFET Thermal Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:        #f8f7f4;
+    --surface:   #ffffff;
+    --surface2:  #f1efe8;
+    --surface3:  #e8e5dc;
+    --border:    rgba(0,0,0,0.10);
+    --border2:   rgba(0,0,0,0.18);
+    --text-pri:  #1a1a18;
+    --text-sec:  #5f5e5a;
+    --text-ter:  #888780;
+    --coral:     #D85A30;
+    --coral-bg:  rgba(216,90,48,0.08);
+    --teal:      #1D9E75;
+    --teal-bg:   rgba(29,158,117,0.08);
+    --amber:     #C98B1A;
+    --amber-bg:  rgba(201,139,26,0.10);
+    --blue:      #2C6FAC;
+    --blue-bg:   rgba(44,111,172,0.08);
+    --limit:     #888780;
+    --grid:      rgba(0,0,0,0.07);
+    --radius:    10px;
+    --radius-lg: 14px;
+    font-size: 14px;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg:       #1a1a18;
+      --surface:  #242422;
+      --surface2: #2c2c2a;
+      --surface3: #343430;
+      --border:   rgba(255,255,255,0.10);
+      --border2:  rgba(255,255,255,0.20);
+      --text-pri: #f1efe8;
+      --text-sec: #b4b2a9;
+      --text-ter: #888780;
+      --grid:     rgba(255,255,255,0.07);
+    }
+  }
+
+  body {
+    font-family: 'Georgia', 'Times New Roman', serif;
+    background: var(--bg);
+    color: var(--text-pri);
+    min-height: 100vh;
+    padding: 2rem 1.5rem;
+  }
+
+  /* ── PAGE HEADER ── */
+  .page-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 2rem;
+    padding-bottom: 1.5rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .page-header-text h1 {
+    font-size: 22px;
+    font-weight: normal;
+    letter-spacing: -0.02em;
+    color: var(--text-pri);
+    margin-bottom: 4px;
+  }
+  .page-header-text p {
+    font-size: 13px;
+    color: var(--text-sec);
+    font-family: 'Courier New', monospace;
+  }
+  .header-btns { display: flex; gap: 8px; flex-shrink: 0; }
+  .btn-info {
+    display: flex; align-items: center; gap: 6px;
+    background: var(--surface2); border: 1px solid var(--border2);
+    border-radius: var(--radius); padding: 8px 14px;
+    font-size: 12px; font-family: 'Courier New', monospace;
+    color: var(--text-sec); cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+  }
+  .btn-info:hover { background: var(--surface3); color: var(--text-pri); }
+  .btn-info svg { width: 14px; height: 14px; }
+
+  /* ── INPUT PARAMS PANEL ── */
+  .params-panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+  }
+  .params-title {
+    font-size: 11px;
+    font-family: 'Courier New', monospace;
+    color: var(--text-sec);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 1rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .params-title::before {
+    content: '⚙';
+    font-size: 13px;
+    color: var(--coral);
+  }
+  .params-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 14px;
+  }
+  .param-field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .param-field label {
+    font-size: 11px;
+    font-family: 'Courier New', monospace;
+    color: var(--text-sec);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .param-field .param-sub {
+    font-size: 10px;
+    color: var(--text-ter);
+    font-family: 'Courier New', monospace;
+    margin-top: -2px;
+  }
+  .input-wrap {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .input-wrap input[type=number] {
+    flex: 1;
+    background: var(--surface2);
+    border: 1px solid var(--border2);
+    border-radius: 6px;
+    padding: 7px 10px;
+    font-size: 13px;
+    font-family: 'Courier New', monospace;
+    color: var(--text-pri);
+    outline: none;
+    transition: border-color 0.15s, box-shadow 0.15s;
+    min-width: 0;
+  }
+  .input-wrap input[type=number]:focus {
+    border-color: var(--coral);
+    box-shadow: 0 0 0 3px rgba(216,90,48,0.12);
+  }
+  .input-wrap input[type=number]::-webkit-inner-spin-button,
+  .input-wrap input[type=number]::-webkit-outer-spin-button { opacity: 1; }
+  .input-unit {
+    font-size: 12px;
+    font-family: 'Courier New', monospace;
+    color: var(--text-ter);
+    white-space: nowrap;
+    min-width: 40px;
+  }
+
+  .params-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 1.25rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border);
+  }
+  .btn-apply {
+    background: var(--coral);
+    color: #fff;
+    border: none;
+    border-radius: var(--radius);
+    padding: 9px 20px;
+    font-size: 12px;
+    font-family: 'Courier New', monospace;
+    cursor: pointer;
+    letter-spacing: 0.04em;
+    transition: opacity 0.15s, transform 0.1s;
+  }
+  .btn-apply:hover { opacity: 0.88; }
+  .btn-apply:active { transform: scale(0.98); }
+  .btn-reset {
+    background: transparent;
+    color: var(--text-sec);
+    border: 1px solid var(--border2);
+    border-radius: var(--radius);
+    padding: 9px 16px;
+    font-size: 12px;
+    font-family: 'Courier New', monospace;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .btn-reset:hover { background: var(--surface2); }
+  .apply-note {
+    font-size: 11px;
+    color: var(--text-ter);
+    font-family: 'Courier New', monospace;
+  }
+
+  /* ── METRICS ── */
+  .metric-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 2rem;
+  }
+  .metric {
+    flex: 1;
+    min-width: 120px;
+    background: var(--surface2);
+    border-radius: var(--radius);
+    padding: 14px 16px;
+  }
+  .metric-label { font-size: 11px; color: var(--text-sec); font-family: 'Courier New', monospace; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px; }
+  .metric-value { font-size: 22px; color: var(--text-pri); }
+  .metric-sub   { font-size: 11px; color: var(--text-ter); margin-top: 4px; font-family: 'Courier New', monospace; }
+  .metric.warn .metric-value { color: var(--coral); }
+
+  .divider { border: none; border-top: 1px solid var(--border); margin: 2rem 0; }
+
+  /* ── CHARTS ── */
+  .chart-block {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+  }
+  .chart-title-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 1rem;
+  }
+  .chart-title {
+    font-size: 13px;
+    font-family: 'Courier New', monospace;
+    color: var(--text-sec);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-bottom: 0;
+  }
+  .chart-info-btn {
+    display: flex; align-items: center; justify-content: center;
+    width: 22px; height: 22px; flex-shrink: 0;
+    background: var(--surface2);
+    border: 1px solid var(--border2);
+    border-radius: 50%;
+    cursor: pointer;
+    font-family: 'Georgia', serif;
+    font-size: 12px;
+    font-style: italic;
+    color: var(--text-sec);
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+  }
+  .chart-info-btn:hover { background: var(--coral-bg); border-color: var(--coral); color: var(--coral); }
+
+  /* conclusion popover */
+  .chart-conclusion {
+    display: none;
+    background: var(--surface2);
+    border: 1px solid var(--border2);
+    border-left: 3px solid var(--coral);
+    border-radius: 0 var(--radius) var(--radius) 0;
+    padding: 12px 14px;
+    margin-bottom: 1rem;
+    animation: slideDown 0.18s ease;
+  }
+  .chart-conclusion.open { display: block; }
+  @keyframes slideDown {
+    from { opacity: 0; transform: translateY(-6px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .chart-conclusion-title {
+    font-size: 10px;
+    font-family: 'Courier New', monospace;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--coral);
+    margin-bottom: 6px;
+  }
+  .chart-conclusion p {
+    font-size: 12.5px;
+    color: var(--text-sec);
+    line-height: 1.65;
+    margin-bottom: 5px;
+    font-family: 'Georgia', serif;
+  }
+  .chart-conclusion p:last-child { margin-bottom: 0; }
+  .chart-conclusion strong { color: var(--text-pri); }
+
+  .controls { margin-bottom: 1rem; }
+  .slider-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
+  }
+  .slider-row label {
+    font-size: 12px;
+    color: var(--text-sec);
+    font-family: 'Courier New', monospace;
+    min-width: 140px;
+  }
+  .slider-row input[type=range] {
+    flex: 1;
+    height: 4px;
+    accent-color: var(--coral);
+    cursor: pointer;
+  }
+  .slider-row .val {
+    font-size: 12px;
+    font-family: 'Courier New', monospace;
+    color: var(--text-pri);
+    min-width: 70px;
+    text-align: right;
+  }
+
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    font-size: 12px;
+    color: var(--text-sec);
+    font-family: 'Courier New', monospace;
+    margin-bottom: 12px;
+  }
+  .legend span { display: flex; align-items: center; gap: 6px; }
+  .swatch { width: 24px; height: 3px; border-radius: 2px; display: inline-block; }
+  .swatch-dash { width: 24px; height: 0; border-top: 2px dashed #888780; display: inline-block; }
+
+  .chart-wrap { position: relative; width: 100%; height: 260px; }
+  .chart-note { font-size: 11px; color: var(--text-ter); font-family: 'Courier New', monospace; margin-top: 8px; }
+
+  /* ── INFO MODAL ── */
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.55);
+    backdrop-filter: blur(4px);
+    z-index: 999;
+    padding: 2rem 1rem;
+    overflow-y: auto;
+  }
+  .modal-overlay.open { display: flex; align-items: flex-start; justify-content: center; }
+  .modal {
+    background: var(--surface);
+    border: 1px solid var(--border2);
+    border-radius: var(--radius-lg);
+    width: 100%;
+    max-width: 720px;
+    padding: 2rem;
+    position: relative;
+    margin: auto;
+  }
+  .modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 1.5rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .modal-title {
+    font-size: 16px;
+    font-weight: normal;
+    letter-spacing: -0.01em;
+    color: var(--text-pri);
+  }
+  .modal-close {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    width: 30px; height: 30px;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    font-size: 16px;
+    color: var(--text-sec);
+    transition: background 0.15s;
+  }
+  .modal-close:hover { background: var(--surface3); color: var(--text-pri); }
+
+  .info-section {
+    margin-bottom: 1.75rem;
+  }
+  .info-section h3 {
+    font-size: 11px;
+    font-family: 'Courier New', monospace;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--coral);
+    margin-bottom: 0.85rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .info-section p {
+    font-size: 13px;
+    color: var(--text-sec);
+    line-height: 1.65;
+    margin-bottom: 0.6rem;
+  }
+
+  .var-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+    font-family: 'Courier New', monospace;
+  }
+  .var-table th {
+    text-align: left;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-ter);
+    padding: 6px 10px;
+    border-bottom: 1px solid var(--border2);
+  }
+  .var-table td {
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--border);
+    color: var(--text-sec);
+    vertical-align: top;
+    line-height: 1.5;
+  }
+  .var-table td:first-child {
+    color: var(--coral);
+    white-space: nowrap;
+    font-weight: bold;
+  }
+  .var-table tr:last-child td { border-bottom: none; }
+  .var-table tbody tr:nth-child(even) td { background: var(--surface2); }
+
+  .formula-block {
+    background: var(--surface2);
+    border-left: 3px solid var(--coral);
+    border-radius: 0 6px 6px 0;
+    padding: 10px 14px;
+    margin-bottom: 10px;
+    font-family: 'Courier New', monospace;
+    font-size: 12px;
+    color: var(--text-pri);
+    line-height: 1.7;
+  }
+  .formula-block .formula-name {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-ter);
+    margin-bottom: 4px;
+  }
+
+  .step-list {
+    counter-reset: steps;
+    list-style: none;
+    padding: 0;
+  }
+  .step-list li {
+    counter-increment: steps;
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+    margin-bottom: 10px;
+    font-size: 13px;
+    color: var(--text-sec);
+    line-height: 1.55;
+  }
+  .step-list li::before {
+    content: counter(steps);
+    font-family: 'Courier New', monospace;
+    font-size: 11px;
+    background: var(--coral-bg);
+    color: var(--coral);
+    border: 1px solid rgba(216,90,48,0.25);
+    border-radius: 4px;
+    width: 22px; height: 22px;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+
+  .case-compare {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-top: 0.5rem;
+  }
+  .case-box {
+    background: var(--surface2);
+    border-radius: var(--radius);
+    padding: 12px 14px;
+    font-size: 12px;
+    font-family: 'Courier New', monospace;
+  }
+  .case-box .case-label {
+    font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em;
+    margin-bottom: 6px;
+  }
+  .case-box.c1 { border-left: 3px solid var(--coral); }
+  .case-box.c2 { border-left: 3px solid var(--teal); }
+  .case-box.c1 .case-label { color: var(--coral); }
+  .case-box.c2 .case-label { color: var(--teal); }
+  .case-box p { color: var(--text-sec); line-height: 1.55; }
+
+  footer {
+    margin-top: 2rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border);
+    font-size: 11px;
+    color: var(--text-ter);
+    font-family: 'Courier New', monospace;
+  }
+
+  /* validation */
+  .input-wrap input.err { border-color: var(--coral); }
+  .param-err { font-size: 10px; color: var(--coral); font-family: 'Courier New', monospace; margin-top: 2px; display: none; }
+  .param-err.show { display: block; }
+
+  .toast {
+    position: fixed;
+    bottom: 1.5rem; left: 50%;
+    transform: translateX(-50%) translateY(8px);
+    background: var(--coral);
+    color: #fff;
+    font-family: 'Courier New', monospace;
+    font-size: 12px;
+    padding: 8px 18px;
+    border-radius: var(--radius);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s, transform 0.25s;
+    z-index: 1000;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+/* ── HOME BUTTON ── */
+.home-btn {
+  position: fixed;
+  top: 14px;
+  left: 14px;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  background: rgba(8, 12, 16, 0.82);
+  border: 1px solid rgba(255,255,255,0.13);
+  border-radius: 8px;
+  padding: 7px 13px 7px 10px;
+  font-size: 11px;
+  font-family: 'DM Mono', 'JetBrains Mono', 'Courier New', monospace;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(220,215,205,0.75);
+  text-decoration: none;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  cursor: pointer;
+  transition: background 0.18s, border-color 0.18s, color 0.18s, transform 0.15s;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.45);
+}
+.home-btn:hover {
+  background: rgba(216, 90, 48, 0.18);
+  border-color: rgba(216, 90, 48, 0.5);
+  color: #D85A30;
+  transform: translateX(-2px);
+}
+.home-btn svg {
+  width: 13px; height: 13px;
+  flex-shrink: 0;
+  opacity: 0.7;
+  transition: opacity 0.18s;
+}
+.home-btn:hover svg { opacity: 1; }
+</style>
+</head>
+<body>
+
+<!-- HOME BUTTON -->
+<a class="home-btn" href="index.html" title="Back to all tools">
+  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <polyline points="10 12 6 8 10 4"/>
+  </svg>
+  Home
+</a>
+
+
+<!-- ── HEADER ── -->
+<div class="page-header">
+  <div class="page-header-text">
+    <h1>MOSFET Thermal Dashboard</h1>
+    <p id="header-summary">R_ds(on) = 20 mΩ &nbsp;|&nbsp; I = 10 A &nbsp;|&nbsp; P = 2.0 W &nbsp;|&nbsp; Pad = 5×5 mm &nbsp;|&nbsp; Automotive 85°C ambient</p>
+  </div>
+  <div class="header-btns">
+    <button class="btn-info" onclick="openInfo()">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8">
+        <circle cx="8" cy="8" r="7"/>
+        <line x1="8" y1="7" x2="8" y2="11.5"/>
+        <circle cx="8" cy="4.8" r="0.6" fill="currentColor" stroke="none"/>
+      </svg>
+      Variables &amp; Formulas
+    </button>
+  </div>
+</div>
+
+<!-- ── INPUT PARAMETERS ── -->
+<div class="params-panel">
+  <div class="params-title">Device &amp; Board Parameters</div>
+  <div class="params-grid">
+
+    <div class="param-field">
+      <label>R_ds(on)</label>
+      <div class="param-sub">On-state drain-source resistance</div>
+      <div class="input-wrap">
+        <input type="number" id="p-rds" value="20" min="0.1" max="1000" step="0.1">
+        <span class="input-unit">mΩ</span>
+      </div>
+      <span class="param-err" id="err-rds">Enter 0.1–1000 mΩ</span>
+    </div>
+
+    <div class="param-field">
+      <label>Drain current (I)</label>
+      <div class="param-sub">Continuous RMS current through device</div>
+      <div class="input-wrap">
+        <input type="number" id="p-i" value="10" min="0.1" max="500" step="0.1">
+        <span class="input-unit">A</span>
+      </div>
+      <span class="param-err" id="err-i">Enter 0.1–500 A</span>
+    </div>
+
+    <div class="param-field">
+      <label>Pad size</label>
+      <div class="param-sub">Square thermal pad side length</div>
+      <div class="input-wrap">
+        <input type="number" id="p-pad" value="5" min="1" max="30" step="0.5">
+        <span class="input-unit">mm</span>
+      </div>
+      <span class="param-err" id="err-pad">Enter 1–30 mm</span>
+    </div>
+
+    <div class="param-field">
+      <label>Ambient temperature</label>
+      <div class="param-sub">Default ambient for metric cards</div>
+      <div class="input-wrap">
+        <input type="number" id="p-tamb" value="85" min="-40" max="125" step="5">
+        <span class="input-unit">°C</span>
+      </div>
+      <span class="param-err" id="err-tamb">Enter −40 to 125°C</span>
+    </div>
+
+    <div class="param-field">
+      <label>Solder mask thickness</label>
+      <div class="param-sub">Typical LPI mask over pad</div>
+      <div class="input-wrap">
+        <input type="number" id="p-maskt" value="25" min="5" max="100" step="1">
+        <span class="input-unit">µm</span>
+      </div>
+      <span class="param-err" id="err-maskt">Enter 5–100 µm</span>
+    </div>
+
+    <div class="param-field">
+      <label>R_θ(j-c)</label>
+      <div class="param-sub">Junction-to-case thermal resistance</div>
+      <div class="input-wrap">
+        <input type="number" id="p-rjc" value="1.5" min="0.1" max="50" step="0.1">
+        <span class="input-unit">°C/W</span>
+      </div>
+      <span class="param-err" id="err-rjc">Enter 0.1–50 °C/W</span>
+    </div>
+
+    <div class="param-field">
+      <label>PCB thickness</label>
+      <div class="param-sub">Core + prepreg total stackup</div>
+      <div class="input-wrap">
+        <input type="number" id="p-pcbt" value="1.6" min="0.4" max="4.0" step="0.1">
+        <span class="input-unit">mm</span>
+      </div>
+      <span class="param-err" id="err-pcbt">Enter 0.4–4.0 mm</span>
+    </div>
+
+    <div class="param-field">
+      <label>Via drill diameter</label>
+      <div class="param-sub">Copper-filled thermal via</div>
+      <div class="input-wrap">
+        <input type="number" id="p-viad" value="0.3" min="0.1" max="1.0" step="0.05">
+        <span class="input-unit">mm</span>
+      </div>
+      <span class="param-err" id="err-viad">Enter 0.1–1.0 mm</span>
+    </div>
+
+  </div>
+  <div class="params-actions">
+    <button class="btn-apply" onclick="applyParams()">Apply &amp; Recalculate</button>
+    <button class="btn-reset" onclick="resetParams()">Reset to Defaults</button>
+    <span class="apply-note">P = I² × R_ds(on) is computed automatically</span>
+  </div>
+</div>
+
+<!-- ── METRIC CARDS ── -->
+<div class="metric-row">
+  <div class="metric">
+    <p class="metric-label">R_ds(on)</p>
+    <p class="metric-value" id="m-rds">20 mΩ</p>
+    <p class="metric-sub">your MOSFET</p>
+  </div>
+  <div class="metric">
+    <p class="metric-label">Current (I)</p>
+    <p class="metric-value" id="m-i">10 A</p>
+    <p class="metric-sub">continuous RMS</p>
+  </div>
+  <div class="metric">
+    <p class="metric-label">Power dissipated</p>
+    <p class="metric-value" id="m-p">2.0 W</p>
+    <p class="metric-sub" id="m-p-sub">I²R = 10² × 0.020</p>
+  </div>
+  <div class="metric">
+    <p class="metric-label">Rθ total — mask ON</p>
+    <p class="metric-value" id="rth-c1-top">—</p>
+    <p class="metric-sub">Case 1 (4 vias, 5°C/W HS)</p>
+  </div>
+  <div class="metric">
+    <p class="metric-label">Rθ total — mask OFF</p>
+    <p class="metric-value" id="rth-c2-top">—</p>
+    <p class="metric-sub">Case 2 (4 vias, 5°C/W HS)</p>
+  </div>
+  <div class="metric">
+    <p class="metric-label">Tj saved by removing mask</p>
+    <p class="metric-value" id="delta-top">—</p>
+    <p class="metric-sub">at default ambient</p>
+  </div>
+</div>
+
+<hr class="divider">
+
+<!-- ── CHART 1 ── -->
+<div class="chart-block">
+  <div class="chart-title-row">
+    <p class="chart-title">Chart 1 — Ambient temperature sweep</p>
+    <button class="chart-info-btn" onclick="toggleConclusion('c1-info', this)" title="What does this chart conclude?">i</button>
+  </div>
+  <div class="chart-conclusion" id="c1-info">
+    <div class="chart-conclusion-title">Chart Conclusion</div>
+    <p><strong>T_j rises linearly with ambient</strong> — the slope equals R_θ(total), so a worse heatsink or fewer vias steepens both curves equally.</p>
+    <p><strong>The vertical gap between the two curves is constant</strong> across the entire ambient sweep. It equals P × R_θ(mask) — the mask penalty is a fixed temperature offset regardless of ambient.</p>
+    <p><strong>Design takeaway:</strong> If either curve crosses the 150°C dashed limit within your operating ambient range, the design is unsafe at that condition. Removing the mask (Case 2) shifts the curve down by a fixed amount but does not reduce the slope — a better heatsink or more vias is still needed to flatten the rise.</p>
+  </div>
+  <div class="controls">
+    <div class="slider-row">
+      <label>Heatsink Rθ</label>
+      <input type="range" min="1" max="30" step="1" value="5" id="hs1">
+      <span class="val"><span id="hs1-out">5</span> °C/W</span>
+    </div>
+    <div class="slider-row">
+      <label>Thermal vias</label>
+      <input type="range" min="1" max="50" step="1" value="4" id="via1">
+      <span class="val"><span id="via1-out">4</span> vias</span>
+    </div>
+  </div>
+  <div class="legend">
+    <span><span class="swatch" style="background:#D85A30;"></span>Case 1 — mask ON</span>
+    <span><span class="swatch" style="background:#1D9E75;"></span>Case 2 — mask OFF</span>
+    <span><span class="swatch-dash"></span>150°C limit</span>
+  </div>
+  <div class="chart-wrap"><canvas id="chart1"></canvas></div>
+  <p class="chart-note">Ambient range: 25°C (benchtop) → 125°C (extreme automotive)</p>
+</div>
+
+<!-- ── CHART 2 ── -->
+<div class="chart-block">
+  <div class="chart-title-row">
+    <p class="chart-title">Chart 2 — Thermal via count sweep</p>
+    <button class="chart-info-btn" onclick="toggleConclusion('c2-info', this)" title="What does this chart conclude?">i</button>
+  </div>
+  <div class="chart-conclusion" id="c2-info">
+    <div class="chart-conclusion-title">Chart Conclusion</div>
+    <p><strong>Via count has strongly diminishing returns.</strong> Doubling vias from 1→2 halves R_θ(via); doubling from 8→16 adds far less benefit because the total resistance is now dominated by R_θ(j-c) and the heatsink.</p>
+    <p><strong>The gap between Case 1 and Case 2 is constant</strong> at all via counts — confirming that mask removal benefit is independent of via density. You gain the same ΔT_j whether you have 2 or 20 vias.</p>
+    <p><strong>Design takeaway:</strong> Beyond roughly 8–12 vias (at this pad size), additional vias yield negligible T_j improvement. Invest instead in heatsink quality or mask removal to make a meaningful difference.</p>
+  </div>
+  <div class="controls">
+    <div class="slider-row">
+      <label>Ambient temp</label>
+      <input type="range" min="25" max="125" step="5" value="85" id="amb2">
+      <span class="val"><span id="amb2-out">85</span> °C</span>
+    </div>
+    <div class="slider-row">
+      <label>Heatsink Rθ</label>
+      <input type="range" min="1" max="30" step="1" value="5" id="hs2">
+      <span class="val"><span id="hs2-out">5</span> °C/W</span>
+    </div>
+  </div>
+  <div class="legend">
+    <span><span class="swatch" style="background:#D85A30;"></span>Case 1 — mask ON</span>
+    <span><span class="swatch" style="background:#1D9E75;"></span>Case 2 — mask OFF</span>
+    <span><span class="swatch-dash"></span>150°C limit</span>
+  </div>
+  <div class="chart-wrap"><canvas id="chart2"></canvas></div>
+  <p class="chart-note" id="chart2-note">Via count: 1 → 50 copper-filled vias, 0.3 mm drill</p>
+</div>
+
+<!-- ── CHART 3 ── -->
+<div class="chart-block">
+  <div class="chart-title-row">
+    <p class="chart-title">Chart 3 — Heatsink Rθ sweep</p>
+    <button class="chart-info-btn" onclick="toggleConclusion('c3-info', this)" title="What does this chart conclude?">i</button>
+  </div>
+  <div class="chart-conclusion" id="c3-info">
+    <div class="chart-conclusion-title">Chart Conclusion</div>
+    <p><strong>Heatsink Rθ is the dominant variable.</strong> Unlike via count which saturates quickly, T_j keeps rising steeply as heatsink resistance increases — because R_θ(HS) sits in series with no parallel path.</p>
+    <p><strong>The absolute gap between curves widens slightly</strong> as heatsink resistance rises, because a higher total R_θ amplifies the fractional contribution of the mask layer. Mask removal is proportionally more valuable with a poor heatsink.</p>
+    <p><strong>Design takeaway:</strong> Never undersize the heatsink hoping mask removal or extra vias will compensate — they cannot. Heatsink selection sets the T_j ceiling; mask and via optimisation fine-tune within that ceiling.</p>
+  </div>
+  <div class="controls">
+    <div class="slider-row">
+      <label>Ambient temp</label>
+      <input type="range" min="25" max="125" step="5" value="85" id="amb3">
+      <span class="val"><span id="amb3-out">85</span> °C</span>
+    </div>
+    <div class="slider-row">
+      <label>Thermal vias</label>
+      <input type="range" min="1" max="50" step="1" value="4" id="via3">
+      <span class="val"><span id="via3-out">4</span> vias</span>
+    </div>
+  </div>
+  <div class="legend">
+    <span><span class="swatch" style="background:#D85A30;"></span>Case 1 — mask ON</span>
+    <span><span class="swatch" style="background:#1D9E75;"></span>Case 2 — mask OFF</span>
+    <span><span class="swatch-dash"></span>150°C limit</span>
+  </div>
+  <div class="chart-wrap"><canvas id="chart3"></canvas></div>
+  <p class="chart-note">Heatsink range: 1 °C/W (large AL heatsink) → 50 °C/W (small clip-on)</p>
+</div>
+
+<footer id="footer-params">
+  Parameters: R_ds(on) = 20 mΩ &nbsp;|&nbsp; I = 10 A &nbsp;|&nbsp; Pad = 5×5 mm
+  &nbsp;|&nbsp; Mask k = 0.20 W/m·K &nbsp;|&nbsp; TIM k (Cu) = 4.0 W/m·K &nbsp;|&nbsp;
+  TIM k (mask) = 0.50 W/m·K &nbsp;|&nbsp; R_θ(j-c) = 1.5 °C/W &nbsp;|&nbsp;
+  Via d = 0.30 mm &nbsp;|&nbsp; T_jmax = 150°C
+</footer>
+
+<!-- ── INFO MODAL ── -->
+<div class="modal-overlay" id="info-modal" onclick="handleOverlayClick(event)">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 class="modal-title">Variables, Formulas &amp; How to Use</h2>
+      <button class="modal-close" onclick="closeInfo()">✕</button>
+    </div>
+
+    <!-- HOW TO USE -->
+    <div class="info-section">
+      <h3>How to Use This Calculator</h3>
+      <ol class="step-list">
+        <li>Enter your MOSFET's <strong>R_ds(on)</strong> from the datasheet and the expected <strong>drain current</strong>. Power dissipation P = I²·R is computed automatically.</li>
+        <li>Enter your board's <strong>pad size</strong>, <strong>PCB thickness</strong>, and <strong>via drill diameter</strong>. These set the geometric thermal resistance of the via array.</li>
+        <li>Enter <strong>R_θ(j-c)</strong> from your MOSFET datasheet and the nominal <strong>ambient temperature</strong> for your application (85°C for automotive under-hood, 70°C for ADAS, 25°C for benchtop).</li>
+        <li>Click <strong>Apply &amp; Recalculate</strong>. Metric cards and all three charts update immediately.</li>
+        <li>Use the <strong>sliders inside each chart</strong> to sweep a second variable (heatsink, via count, or ambient) while holding the others fixed.</li>
+        <li>Compare the <strong>coral (Case 1, mask ON)</strong> vs <strong>teal (Case 2, mask OFF)</strong> curves. The vertical gap between them at any X point equals the junction temperature rise caused solely by solder mask under the pad.</li>
+        <li>The dashed <strong>150°C limit line</strong> marks T_jmax. Any curve crossing it signals a design violation at those conditions.</li>
+      </ol>
+    </div>
+
+    <!-- CASES -->
+    <div class="info-section">
+      <h3>Two Cases Modelled</h3>
+      <div class="case-compare">
+        <div class="case-box c1">
+          <div class="case-label">Case 1 — Mask ON (conservative)</div>
+          <p>Solder mask remains over the thermal pad. Heat path: Junction → Package case → Via array (FR4 substrate) → Solder mask layer → TIM (poor, k = 0.5 W/m·K) → Heatsink.</p>
+        </div>
+        <div class="case-box c2">
+          <div class="case-label">Case 2 — Mask OFF (optimised)</div>
+          <p>Mask is opened on the thermal pad. Heat path: Junction → Package case → Via array → TIM (good Cu-loaded, k = 4.0 W/m·K) → Heatsink. R_mask term is eliminated.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- VARIABLES -->
+    <div class="info-section">
+      <h3>Variable Glossary</h3>
+      <table class="var-table">
+        <thead>
+          <tr><th>Symbol</th><th>Meaning</th><th>Unit</th><th>Typical range</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>R_ds(on)</td><td>On-state drain–source resistance of the MOSFET. Read from datasheet at rated V_gs and junction temperature.</td><td>mΩ</td><td>1–500 mΩ</td></tr>
+          <tr><td>I</td><td>Continuous RMS drain current through the device in steady state.</td><td>A</td><td>0.1–100 A</td></tr>
+          <tr><td>P</td><td>Conduction power loss. P = I² × R_ds(on). Switching losses not included.</td><td>W</td><td>—</td></tr>
+          <tr><td>T_amb</td><td>Ambient temperature at the heatsink or PCB backside. 85°C is the standard AEC-Q100 Grade 1 automotive value.</td><td>°C</td><td>−40 to 125°C</td></tr>
+          <tr><td>T_j</td><td>Estimated junction (die) temperature. Must remain below T_jmax.</td><td>°C</td><td>&lt; 150°C typical</td></tr>
+          <tr><td>T_jmax</td><td>Maximum allowable junction temperature — fixed at 150°C in this calculator (AEC-Q101 standard).</td><td>°C</td><td>150–175°C</td></tr>
+          <tr><td>R_θ(j-c)</td><td>Thermal resistance from silicon die to device case/pad bottom. Device-specific; read from datasheet.</td><td>°C/W</td><td>0.1–20 °C/W</td></tr>
+          <tr><td>R_θ(via)</td><td>Thermal resistance of the copper via array through the PCB. Decreases with more vias and wider drill.</td><td>°C/W</td><td>0.5–10 °C/W</td></tr>
+          <tr><td>R_θ(mask)</td><td>Thermal resistance of the LPI solder mask film over the pad. Eliminated in Case 2.</td><td>°C/W</td><td>0.2–5 °C/W</td></tr>
+          <tr><td>R_θ(TIM)</td><td>Thermal resistance of the thermal interface material between PCB bottom and heatsink.</td><td>°C/W</td><td>0.1–2 °C/W</td></tr>
+          <tr><td>R_θ(HS)</td><td>Heatsink-to-ambient thermal resistance. Controlled by heatsink geometry and airflow.</td><td>°C/W</td><td>1–50 °C/W</td></tr>
+          <tr><td>R_θ(total)</td><td>Total junction-to-ambient resistance = sum of all series resistances in the heat path.</td><td>°C/W</td><td>—</td></tr>
+          <tr><td>A_pad</td><td>Thermal pad area = side² (square pad assumed).</td><td>m²</td><td>—</td></tr>
+          <tr><td>t_mask</td><td>Solder mask thickness (LPI process). Typically 20–30 µm over conductor.</td><td>µm</td><td>15–50 µm</td></tr>
+          <tr><td>k_mask</td><td>Thermal conductivity of cured LPI solder mask. Fixed at 0.20 W/m·K (literature value).</td><td>W/m·K</td><td>0.15–0.25</td></tr>
+          <tr><td>k_TIM_good</td><td>Thermal conductivity of Cu-loaded TIM used when mask is removed. Fixed at 4.0 W/m·K.</td><td>W/m·K</td><td>2–10</td></tr>
+          <tr><td>k_TIM_poor</td><td>Thermal conductivity of standard TIM used with mask ON. Fixed at 0.50 W/m·K.</td><td>W/m·K</td><td>0.3–1.0</td></tr>
+          <tr><td>t_TIM</td><td>TIM bond-line thickness. Fixed at 50 µm in this model.</td><td>µm</td><td>25–150 µm</td></tr>
+          <tr><td>n_via</td><td>Number of copper-filled thermal vias under the pad. Swept in Chart 2.</td><td>—</td><td>1–50</td></tr>
+          <tr><td>d_via</td><td>Drill diameter of each thermal via.</td><td>mm</td><td>0.1–1.0 mm</td></tr>
+          <tr><td>t_PCB</td><td>Total PCB stackup thickness (length of each via).</td><td>mm</td><td>0.4–4.0 mm</td></tr>
+          <tr><td>k_Cu</td><td>Thermal conductivity of copper. Fixed at 400 W/m·K.</td><td>W/m·K</td><td>385–400</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- FORMULAS -->
+    <div class="info-section">
+      <h3>Governing Equations</h3>
+
+      <div class="formula-block">
+        <div class="formula-name">Conduction power loss</div>
+        P = I² × R_ds(on)
+      </div>
+
+      <div class="formula-block">
+        <div class="formula-name">Via array thermal resistance (parallel copper columns)</div>
+        R_θ(via) = t_PCB / (k_Cu × n_via × π/4 × d_via²)
+      </div>
+
+      <div class="formula-block">
+        <div class="formula-name">Solder mask thermal resistance (Fourier slab)</div>
+        R_θ(mask) = t_mask / (k_mask × A_pad)
+      </div>
+
+      <div class="formula-block">
+        <div class="formula-name">TIM thermal resistance</div>
+        R_θ(TIM) = t_TIM / (k_TIM × A_pad)
+        <br><small style="color:var(--text-ter)">k_TIM = 0.50 W/m·K (Case 1, mask ON) | k_TIM = 4.0 W/m·K (Case 2, mask OFF)</small>
+      </div>
+
+      <div class="formula-block">
+        <div class="formula-name">Total thermal resistance — Case 1 (mask ON)</div>
+        R_θ(total,1) = R_θ(j-c) + R_θ(via) + R_θ(mask) + R_θ(TIM,poor) + R_θ(HS)
+      </div>
+
+      <div class="formula-block">
+        <div class="formula-name">Total thermal resistance — Case 2 (mask OFF)</div>
+        R_θ(total,2) = R_θ(j-c) + R_θ(via) + R_θ(TIM,good) + R_θ(HS)
+      </div>
+
+      <div class="formula-block">
+        <div class="formula-name">Junction temperature estimate</div>
+        T_j = T_amb + P × R_θ(total)
+      </div>
+
+      <div class="formula-block">
+        <div class="formula-name">Design constraint</div>
+        T_j &lt; T_jmax = 150°C &nbsp;(AEC-Q101 Grade 1)
+      </div>
+    </div>
+
+    <!-- ASSUMPTIONS -->
+    <div class="info-section">
+      <h3>Model Assumptions &amp; Limitations</h3>
+      <p>• All thermal resistances are modelled as one-dimensional, steady-state Fourier slabs in series. Lateral spreading resistance is not included.</p>
+      <p>• The via model assumes vias are copper-filled solid cylinders. Hollow vias or via-in-pad with partial fill will have higher R_θ(via) than shown.</p>
+      <p>• R_ds(on) is treated as constant. In practice it rises ~0.2–0.6%/°C, so actual losses are higher at elevated T_j (conservative correction: multiply by 1.3–1.5 for high-temperature operation).</p>
+      <p>• Switching losses, gate driver dissipation, and body-diode conduction are not modelled.</p>
+      <p>• k_mask = 0.20 W/m·K and TIM conductivities are fixed literature values. Verify with your actual materials.</p>
+      <p>• Heatsink R_θ is treated as lumped, ambient is uniform, and natural convection enhancement from the PCB is neglected.</p>
+    </div>
+
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ── DEFAULTS ──────────────────────────────────────────────────────────
+const DEFAULTS = {
+  rds: 20, i: 10, pad: 5, tamb: 85,
+  maskt: 25, rjc: 1.5, pcbt: 1.6, viad: 0.3
+};
+
+// ── STATE ─────────────────────────────────────────────────────────────
+let CFG = {...DEFAULTS};
+let TJMAX = 150;
+const MASK_K = 0.2;
+const TIM_K_GOOD = 4.0;
+const TIM_K_POOR = 0.5;
+const TIM_T = 50e-6;
+const CU_K = 400;
+
+// ── FORMULA ENGINE ────────────────────────────────────────────────────
+function padArea()    { return (CFG.pad*1e-3)*(CFG.pad*1e-3); }
+function rVia(n)      { return (CFG.pcbt*1e-3)/(CU_K*n*Math.PI/4*(CFG.viad*1e-3)*(CFG.viad*1e-3)); }
+function rMask()      { return (CFG.maskt*1e-6)/(MASK_K*padArea()); }
+function rTim1()      { return TIM_T/(TIM_K_POOR*padArea()); }
+function rTim2()      { return TIM_T/(TIM_K_GOOD*padArea()); }
+function rthC1(n,hs)  { return CFG.rjc + rVia(n) + rMask() + rTim1() + hs; }
+function rthC2(n,hs)  { return CFG.rjc + rVia(n) + rTim2() + hs; }
+function P()          { return CFG.i*CFG.i*(CFG.rds/1000); }
+function tj(rth,ta)   { return +(ta + P()*rth).toFixed(1); }
+
+// ── APPLY PARAMS ──────────────────────────────────────────────────────
+const FIELD_RULES = {
+  'p-rds':  {min:0.1,  max:1000, err:'err-rds',  key:'rds'},
+  'p-i':    {min:0.1,  max:500,  err:'err-i',    key:'i'},
+  'p-pad':  {min:1,    max:30,   err:'err-pad',  key:'pad'},
+  'p-tamb': {min:-40,  max:125,  err:'err-tamb', key:'tamb'},
+  'p-maskt':{min:5,    max:100,  err:'err-maskt',key:'maskt'},
+  'p-rjc':  {min:0.1,  max:50,   err:'err-rjc',  key:'rjc'},
+  'p-pcbt': {min:0.4,  max:4.0,  err:'err-pcbt', key:'pcbt'},
+  'p-viad': {min:0.1,  max:1.0,  err:'err-viad', key:'viad'},
+};
+
+function applyParams() {
+  let ok = true;
+  const newCFG = {};
+  for (const [id, rule] of Object.entries(FIELD_RULES)) {
+    const el = document.getElementById(id);
+    const errEl = document.getElementById(rule.err);
+    const v = parseFloat(el.value);
+    if (isNaN(v) || v < rule.min || v > rule.max) {
+      el.classList.add('err');
+      errEl.classList.add('show');
+      ok = false;
+    } else {
+      el.classList.remove('err');
+      errEl.classList.remove('show');
+      newCFG[rule.key] = v;
+    }
+  }
+  if (!ok) return;
+  CFG = newCFG;
+  rebuildAll();
+  showToast('Parameters applied ✓');
+}
+
+function resetParams() {
+  CFG = {...DEFAULTS};
+  for (const [id, rule] of Object.entries(FIELD_RULES)) {
+    document.getElementById(id).value = DEFAULTS[rule.key];
+    document.getElementById(id).classList.remove('err');
+    document.getElementById(rule.err).classList.remove('show');
+  }
+  rebuildAll();
+  showToast('Reset to defaults ✓');
+}
+
+// ── UPDATE UI ─────────────────────────────────────────────────────────
+function updateHeader() {
+  document.getElementById('header-summary').textContent =
+    `R_ds(on) = ${CFG.rds} mΩ  |  I = ${CFG.i} A  |  P = ${P().toFixed(2)} W  |  Pad = ${CFG.pad}×${CFG.pad} mm  |  Ambient = ${CFG.tamb}°C`;
+}
+
+function updateMetrics(n, hs) {
+  const r1 = rthC1(n, hs), r2 = rthC2(n, hs);
+  const t1 = tj(r1, CFG.tamb), t2 = tj(r2, CFG.tamb);
+  document.getElementById('m-rds').textContent = CFG.rds + ' mΩ';
+  document.getElementById('m-i').textContent   = CFG.i + ' A';
+  document.getElementById('m-p').textContent   = P().toFixed(2) + ' W';
+  document.getElementById('m-p-sub').textContent = `I²R = ${CFG.i}² × ${(CFG.rds/1000).toFixed(4)}`;
+  document.getElementById('rth-c1-top').textContent = r1.toFixed(2) + ' °C/W';
+  document.getElementById('rth-c2-top').textContent = r2.toFixed(2) + ' °C/W';
+  const delta = (t1-t2).toFixed(1);
+  const dEl = document.getElementById('delta-top');
+  dEl.textContent = delta + '°C';
+  dEl.closest('.metric').classList.toggle('warn', parseFloat(delta) > 5);
+}
+
+function updateFooter() {
+  document.getElementById('footer-params').innerHTML =
+    `Parameters: R_ds(on) = ${CFG.rds} mΩ &nbsp;|&nbsp; I = ${CFG.i} A &nbsp;|&nbsp; Pad = ${CFG.pad}×${CFG.pad} mm ` +
+    `&nbsp;|&nbsp; Mask k = 0.20 W/m·K &nbsp;|&nbsp; TIM k (Cu) = 4.0 W/m·K &nbsp;|&nbsp; ` +
+    `TIM k (mask) = 0.50 W/m·K &nbsp;|&nbsp; R_θ(j-c) = ${CFG.rjc} °C/W &nbsp;|&nbsp; ` +
+    `Via d = ${CFG.viad} mm &nbsp;|&nbsp; T_jmax = 150°C`;
+  document.getElementById('chart2-note').textContent =
+    `Via count: 1 → 50 copper-filled vias, ${CFG.viad} mm drill`;
+}
+
+// ── CHARTS ────────────────────────────────────────────────────────────
+const gridColor  = 'rgba(128,128,128,0.12)';
+const labelColor = '#888780';
+
+function chartOpts(xTitle, yMin, yMax) {
+  return {
+    responsive: true, maintainAspectRatio: false, animation: {duration: 180},
+    plugins: {legend: {display: false}, tooltip: {callbacks: {label: ctx => ctx.dataset.label+': '+ctx.parsed.y.toFixed(1)+'°C'}}},
+    scales: {
+      x: {ticks: {color: labelColor, maxTicksLimit: 10, autoSkip: true, font: {family:'Courier New', size:11}},
+          grid: {color: gridColor},
+          title: {display: true, text: xTitle, color: labelColor, font: {family:'Courier New', size:11}}},
+      y: {min: yMin, max: yMax,
+          ticks: {color: labelColor, callback: v => v+'°C', font: {family:'Courier New', size:11}},
+          grid: {color: gridColor},
+          title: {display: true, text: 'Junction temp (°C)', color: labelColor, font: {family:'Courier New', size:11}}}
+    }
+  };
+}
+
+function makeDatasets(labels, d1, d2, limitVal) {
+  return [
+    {label:'Case 1 — mask ON',  data: d1, borderColor:'#D85A30', backgroundColor:'rgba(216,90,48,0.07)',  borderWidth:2.5, pointRadius:3, pointBackgroundColor:'#D85A30', tension:0.3, fill:false},
+    {label:'Case 2 — mask OFF', data: d2, borderColor:'#1D9E75', backgroundColor:'rgba(29,158,117,0.07)', borderWidth:2.5, pointRadius:3, pointBackgroundColor:'#1D9E75', tension:0.3, fill:false},
+    {label:'150°C limit', data: labels.map(()=>limitVal), borderColor:'#888780', borderWidth:1.5, borderDash:[5,4], pointRadius:0, tension:0, fill:false}
+  ];
+}
+
+// Chart data generators
+function ambLabels() { const a=[]; for(let t=25;t<=125;t+=5)a.push(t+'°C'); return a; }
+const viaVals  = [1,2,3,4,5,6,7,8,10,12,16,20,25,30,40,50];
+const viaLabels = viaVals.map(v=>v+' vias');
+const hsVals   = [1,2,3,5,8,10,15,20,25,30,40,50];
+const hsLabels  = hsVals.map(h=>h+' °C/W');
+
+function makeChart1Data(hs, n) {
+  const al = ambLabels();
+  const d1 = al.map((_,i)=>tj(rthC1(n,hs),25+i*5));
+  const d2 = al.map((_,i)=>tj(rthC2(n,hs),25+i*5));
+  return {labels: al, datasets: makeDatasets(al,d1,d2,TJMAX)};
+}
+function makeChart2Data(tamb, hs) {
+  const d1 = viaVals.map(v=>tj(rthC1(v,hs),tamb));
+  const d2 = viaVals.map(v=>tj(rthC2(v,hs),tamb));
+  return {labels: viaLabels, datasets: makeDatasets(viaLabels,d1,d2,TJMAX)};
+}
+function makeChart3Data(tamb, n) {
+  const d1 = hsVals.map(h=>tj(rthC1(n,h),tamb));
+  const d2 = hsVals.map(h=>tj(rthC2(n,h),tamb));
+  return {labels: hsLabels, datasets: makeDatasets(hsLabels,d1,d2,TJMAX)};
+}
+
+// Create charts
+const c1 = new Chart(document.getElementById('chart1'),{type:'line',data:makeChart1Data(5,4),options:chartOpts('Ambient temperature',60,280)});
+const c2 = new Chart(document.getElementById('chart2'),{type:'line',data:makeChart2Data(85,5),options:chartOpts('Number of thermal vias',60,280)});
+const c3 = new Chart(document.getElementById('chart3'),{type:'line',data:makeChart3Data(85,4),options:chartOpts('Heatsink Rθ (°C/W)',60,280)});
+
+function rebuildAll() {
+  const hs1  = +document.getElementById('hs1').value;
+  const via1 = +document.getElementById('via1').value;
+  const amb2 = +document.getElementById('amb2').value;
+  const hs2  = +document.getElementById('hs2').value;
+  const amb3 = +document.getElementById('amb3').value;
+  const via3 = +document.getElementById('via3').value;
+
+  c1.data = makeChart1Data(hs1, via1);  c1.update();
+  c2.data = makeChart2Data(amb2, hs2);  c2.update();
+  c3.data = makeChart3Data(amb3, via3); c3.update();
+
+  updateMetrics(4, 5);
+  updateHeader();
+  updateFooter();
+}
+
+// ── SLIDER BINDINGS ───────────────────────────────────────────────────
+function bind(id, outId, cb) {
+  const el = document.getElementById(id);
+  el.addEventListener('input', () => {
+    document.getElementById(outId).textContent = el.value;
+    cb();
+  });
+}
+
+bind('hs1','hs1-out',()=>{ c1.data=makeChart1Data(+document.getElementById('hs1').value,+document.getElementById('via1').value); c1.update(); updateMetrics(+document.getElementById('via1').value,+document.getElementById('hs1').value); });
+bind('via1','via1-out',()=>{ c1.data=makeChart1Data(+document.getElementById('hs1').value,+document.getElementById('via1').value); c1.update(); updateMetrics(+document.getElementById('via1').value,+document.getElementById('hs1').value); });
+bind('amb2','amb2-out',()=>{ c2.data=makeChart2Data(+document.getElementById('amb2').value,+document.getElementById('hs2').value); c2.update(); });
+bind('hs2','hs2-out',()=>{ c2.data=makeChart2Data(+document.getElementById('amb2').value,+document.getElementById('hs2').value); c2.update(); });
+bind('amb3','amb3-out',()=>{ c3.data=makeChart3Data(+document.getElementById('amb3').value,+document.getElementById('via3').value); c3.update(); });
+bind('via3','via3-out',()=>{ c3.data=makeChart3Data(+document.getElementById('amb3').value,+document.getElementById('via3').value); c3.update(); });
+
+// ── INITIAL RENDER ────────────────────────────────────────────────────
+updateMetrics(4, 5);
+
+// ── INFO MODAL ────────────────────────────────────────────────────────
+function openInfo()  { document.getElementById('info-modal').classList.add('open'); document.body.style.overflow='hidden'; }
+function closeInfo() { document.getElementById('info-modal').classList.remove('open'); document.body.style.overflow=''; }
+function handleOverlayClick(e) { if(e.target===document.getElementById('info-modal')) closeInfo(); }
+document.addEventListener('keydown', e => { if(e.key==='Escape') closeInfo(); });
+
+
+// ── CHART CONCLUSION TOGGLE ─────────────────────────────────────────────
+function toggleConclusion(id, btn) {
+  const el = document.getElementById(id);
+  const isOpen = el.classList.toggle('open');
+  btn.style.background = isOpen ? 'var(--coral-bg)' : '';
+  btn.style.borderColor = isOpen ? 'var(--coral)' : '';
+  btn.style.color = isOpen ? 'var(--coral)' : '';
+}
+
+// ── TOAST ─────────────────────────────────────────────────────────────
+let toastTimer;
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=>t.classList.remove('show'), 2200);
+}
+</script>
+</body>
+</html>
